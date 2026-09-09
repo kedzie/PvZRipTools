@@ -449,6 +449,33 @@ namespace PvZRip.Editor
                 settings.loopTime = true;
                 AnimationUtility.SetAnimationClipSettings(clip, settings);
             }
+
+            // Launch sound baked onto idle2_1 (the only pose the plant ever
+            // shows - it fires and dies on its first Update tick) rather than
+            // played programmatically, same as Bonkchoy's PlaySound events -
+            // the hit sound is the one tied to code, via
+            // TumbleweedProjectileDefinition.SetHitSfx.
+            var idleClip = AssetDatabase.LoadAssetAtPath<AnimationClip>($"{root}/plant/idle2_1/idle2_1.anim");
+            var launchSfx = AssetDatabase.LoadAssetAtPath<AudioClip>("Assets/plantrip/tumbleweed/sounds/51358952.ogg");
+            if (idleClip == null || launchSfx == null)
+            {
+                Debug.LogError($"[PvZBundleBuilder] Could not bake Tumbleweed's launch sound - idleClip={idleClip != null}, launchSfx={launchSfx != null}.");
+            }
+            else
+            {
+                var events = AnimationUtility.GetAnimationEvents(idleClip);
+                var newEvents = new AnimationEvent[events.Length + 1];
+                events.CopyTo(newEvents, 0);
+                newEvents[events.Length] = new AnimationEvent
+                {
+                    time = 0f,
+                    functionName = "PlaySound",
+                    objectReferenceParameter = launchSfx,
+                };
+                AnimationUtility.SetAnimationEvents(idleClip, newEvents);
+                EditorUtility.SetDirty(idleClip);
+                AssetDatabase.SaveAssets();
+            }
         }
 
         static void SetDefaultState(string controllerPath, string stateName)
