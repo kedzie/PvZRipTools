@@ -1,0 +1,274 @@
+#!/usr/bin/env python3
+"""
+PAM (PopCap Animation) -> flat PNG frame sequence compositor.
+
+Resolves a decoded PAM JSON (from PopStudio's DecodePam, command code 180) plus a
+plant's atlas rect mapping (from RESOURCES.RTON) and atlas PNG, and rasterizes the
+global animation timeline into one flat, cropped PNG per frame -- matching the
+convention already observed in PvZCompleteCollection's shipped AssetBundle-UnityProject
+(frame_NNN.png, one Sprite per PAM frame, sliced into folders at label boundaries).
+"""
+import json
+import math
+import sys
+from pathlib import Path
+
+from PIL import Image
+
+
+def to_matrix6(t):
+    """Normalize a PAM transform array (len 2, 3, or 6) to (a,b,c,d,tx,ty)."""
+    if t is None:
+        return (1.0, 0.0, 0.0, 1.0, 0.0, 0.0)
+    if len(t) == 6:
+        return tuple(t)
+    if len(t) == 3:
+        theta = t[0]
+        a, b, c, d = math.cos(theta), math.sin(theta), -math.sin(theta), math.cos(theta)
+        return (a, b, c, d, t[1], t[2])
+    if len(t) == 2:
+        return (1.0, 0.0, 0.0, 1.0, t[0], t[1])
+    raise ValueError(f"unexpected transform length {len(t)}: {t}")
+
+
+def mat_mul(m1, m2):
+    """Compose m1 after m2: world = m1 . m2  (apply m2 first, then m1)."""
+    a1, b1, c1, d1, tx1, ty1 = m1
+    a2, b2, c2, d2, tx2, ty2 = m2
+    return (
+        a1 * a2 + c1 * b2,
+        b1 * a2 + d1 * b2,
+        a1 * c2 + c1 * d2,
+        b1 * c2 + d1 * d2,
+        a1 * tx2 + c1 * ty2 + tx1,
+        b1 * tx2 + d1 * ty2 + ty1,
+    )
+
+
+def mat_invert(m):
+    a, b, c, d, tx, ty = m
+    det = a * d - b * c
+    if abs(det) < 1e-12:
+        det = 1e-12
+    ia, ib, ic, id_ = d / det, -b / det, -c / det, a / det
+    itx = -(ia * tx + ic * ty)
+    ity = -(ib * tx + id_ * ty)
+    return (ia, ib, ic, id_, itx, ity)
+
+
+class PamAsset:
+    SKIP_SPRITE_NAMES = {"_custom"}
+
+    def __init__(self, pam_json_path, resources_json_path, atlas_png_path, plant_group_id):
+        self.pam = json.load(open(pam_json_path))
+        resources = json.load(open(resources_json_path))
+        self.rect_by_id = {}
+        for g in resources["groups"]:
+            if g.get("id") == plant_group_id and g.get("type") == "simple":
+                for r in g.get("resources", []):
+                    if "ax" in r:
+                        self.rect_by_id[r["id"]] = (r["ax"], r["ay"], r["aw"], r["ah"])
+        if not self.rect_by_id:
+            raise ValueError(f"no atlas rects found for group {plant_group_id}")
+
+        # PAM's local (0,0) is not the character's true anchor - verified against
+        # real Bloomerang, raw origin-relative pivots land far outside the normal
+        # [0,1] range. The PAM's root "position"/"size" describe a fixed 390x390
+        # editor stage (identical across every plant checked, so it's template
+        # geometry, not per-character data) whose center empirically lands much
+        # closer to the true anchor. Combined with a fixed (non-per-frame) crop
+        # rectangle, this gets pivot values close to real (still an approximation -
+        # residual error remains, mostly in X).
+        stage_pos = self.pam.get("position") or [0, 0]
+        stage_size = self.pam.get("size") or [0, 0]
+        self.stage_center = (stage_pos[0] + stage_size[0] / 2.0, stage_pos[1] + stage_size[1] / 2.0)
+        self.atlas = Image.open(atlas_png_path).convert("RGBA")
+        self.sprites_by_name = {s["name"]: s for s in self.pam["sprite"]}
+
+    def image_rect_and_crop(self, image_index):
+        img = self.pam["image"][image_index]
+        res_id = img["name"].split("|")[-1]
+        rect = self.rect_by_id.get(res_id)
+        if rect is None:
+            return None, None
+        ax, ay, aw, ah = rect
+        crop = self.atlas.crop((ax, ay, ax + aw, ay + ah))
+        local_mat = to_matrix6(img.get("transform"))
+        return crop, local_mat
+
+    def _replay(self, frame_list, upto_index):
+        """Replay append/remove/change events 0..upto_index inclusive; return active layer dict."""
+        layers = {}
+        for i in range(upto_index + 1):
+            fr = frame_list[i]
+            for rem in fr.get("remove", []) or []:
+                layers.pop(rem["index"], None)
+            for app in fr.get("append", []) or []:
+                layers[app["index"]] = dict(app)
+                layers[app["index"]].setdefault("transform", None)
+                layers[app["index"]].setdefault("color", None)
+                layers[app["index"]].setdefault("src_rect", None)
+                layers[app["index"]].setdefault("anim_frame_num", 0)
+            for ch in fr.get("change", []) or []:
+                idx = ch["index"]
+                if idx not in layers:
+                    layers[idx] = dict(ch)
+                    continue
+                for k in ("transform", "color", "src_rect", "anim_frame_num"):
+                    if ch.get(k) is not None:
+                        layers[idx][k] = ch[k]
+        return layers
+
+    def resolve_leaves(self, sprite, frame_index, parent_matrix, depth=0):
+        """Recursively resolve a sprite's active layers at frame_index into a flat
+        list of (world_matrix, color, crop_image) leaf draws, back-to-front by index."""
+        if depth > 8:
+            return []
+        frames = sprite["frame"]
+        frame_index = max(0, min(frame_index, len(frames) - 1))
+        layers = self._replay(frames, frame_index)
+        leaves = []
+        for idx in sorted(layers.keys()):
+            layer = layers[idx]
+            local_mat = to_matrix6(layer.get("transform"))
+            world_mat = mat_mul(parent_matrix, local_mat)
+            resource = layer.get("resource", 0)
+            if layer.get("sprite"):
+                child = self.pam["sprite"][resource]
+                if child.get("name") in self.SKIP_SPRITE_NAMES:
+                    continue
+                child_frame = layer.get("anim_frame_num", 0) or 0
+                leaves.extend(self.resolve_leaves(child, child_frame, world_mat, depth + 1))
+            else:
+                crop, img_local_mat = self.image_rect_and_crop(resource)
+                if crop is None:
+                    continue
+                final_mat = mat_mul(world_mat, img_local_mat)
+                leaves.append((final_mat, layer.get("color"), crop))
+        return leaves
+
+    def render_global_frame(self, global_index, canvas_size=1600, origin=(800, 800)):
+        main = self.pam["main_sprite"]
+        identity = (1.0, 0.0, 0.0, 1.0, origin[0], origin[1])
+        leaves = self.resolve_leaves(main, global_index, identity)
+        canvas = Image.new("RGBA", (canvas_size, canvas_size), (0, 0, 0, 0))
+        for mat, color, crop in leaves:
+            if color is not None and len(color) >= 4 and color[3] <= 0.001:
+                continue
+            inv = mat_invert(mat)
+            a, b, c, d, tx, ty = inv
+            layer_img = crop
+            if color is not None and (color[0] < 0.999 or color[1] < 0.999 or color[2] < 0.999 or color[3] < 0.999):
+                r, g, bch, al = layer_img.split()
+                r = r.point(lambda v, m=color[0]: int(v * m))
+                g = g.point(lambda v, m=color[1]: int(v * m))
+                bch = bch.point(lambda v, m=color[2]: int(v * m))
+                al = al.point(lambda v, m=color[3]: int(v * m))
+                layer_img = Image.merge("RGBA", (r, g, bch, al))
+            transformed = layer_img.transform(
+                (canvas_size, canvas_size),
+                Image.AFFINE,
+                (a, c, tx, b, d, ty),
+                resample=Image.BICUBIC,
+            )
+            canvas.alpha_composite(transformed)
+        return canvas
+
+
+    def label_ranges(self):
+        """[(label, start_global_index, end_global_index_inclusive), ...] from main_sprite labels."""
+        frames = self.pam["main_sprite"]["frame"]
+        labeled = [(i, f["label"]) for i, f in enumerate(frames) if f.get("label")]
+        ranges = []
+        for n, (start, label) in enumerate(labeled):
+            end = (labeled[n + 1][0] - 1) if n + 1 < len(labeled) else len(frames) - 1
+            ranges.append((label, start, end))
+        return ranges
+
+    def export_all(self, out_dir, canvas_size=1600, origin=(800, 800)):
+        """Render every global frame, sliced into <out_dir>/<label>/frame_<N+1>.png,
+        matching the AssetBundle-UnityProject convention (1-indexed filenames).
+
+        Real shipped frames are NOT auto-cropped per frame - verified against
+        Bloomerang, idle/frame_1, idle/frame_10, and attack/frame_53 (a completely
+        different animation state) are all exactly the same pixel dimensions. They're
+        cropped once to a single fixed rectangle spanning the whole animation, and
+        the surrounding transparent padding is what keeps the character correctly
+        positioned frame to frame. Cropping tight to each frame's own bbox (as this
+        used to do) makes that per-frame crop a different size/position every time,
+        so the character visibly jumps around relative to its true anchor. Pass 1
+        renders every frame to find the union bbox across the whole timeline; pass 2
+        re-renders and crops every frame to that one fixed rectangle.
+        """
+        out_dir = Path(out_dir)
+        frame_list = []
+        for label, start, end in self.label_ranges():
+            for global_index in range(start, end + 1):
+                frame_list.append((label, global_index))
+
+        union_bbox = None
+        for _, global_index in frame_list:
+            canvas = self.render_global_frame(global_index, canvas_size, origin)
+            bbox = canvas.getbbox()
+            if bbox is None:
+                continue
+            if union_bbox is None:
+                union_bbox = list(bbox)
+            else:
+                union_bbox[0] = min(union_bbox[0], bbox[0])
+                union_bbox[1] = min(union_bbox[1], bbox[1])
+                union_bbox[2] = max(union_bbox[2], bbox[2])
+                union_bbox[3] = max(union_bbox[3], bbox[3])
+
+        manifest = {}
+        for label, global_index in frame_list:
+            label_dir = out_dir / label
+            label_dir.mkdir(parents=True, exist_ok=True)
+            canvas = self.render_global_frame(global_index, canvas_size, origin)
+            cropped = canvas.crop(tuple(union_bbox)) if union_bbox else canvas
+            fname = f"frame_{global_index + 1}.png"
+            cropped.save(label_dir / fname)
+            if union_bbox:
+                true_origin = (origin[0] + self.stage_center[0], origin[1] + self.stage_center[1])
+                px = (true_origin[0] - union_bbox[0]) / (union_bbox[2] - union_bbox[0])
+                py = (true_origin[1] - union_bbox[1]) / (union_bbox[3] - union_bbox[1])
+            else:
+                px = py = 0.5
+            manifest[f"{label}/{fname}"] = {
+                "bbox": union_bbox,
+                "pivot": [px, 1 - py],
+                "size": list(cropped.size),
+            }
+        with open(out_dir / "manifest.json", "w") as f:
+            json.dump(manifest, f, indent=2)
+        with open(out_dir / "manifest.tsv", "w") as f:
+            for key, info in manifest.items():
+                label, fname = key.split("/", 1)
+                px, py = info["pivot"]
+                f.write(f"{label}\t{fname}\t{px}\t{py}\n")
+        return manifest
+
+
+def main():
+    if len(sys.argv) < 5:
+        print("usage: pam_compositor.py <pam.json> <resources.json> <atlas.png> <plant_group_id> [frame_idx out.png | --all out_dir]")
+        sys.exit(1)
+    pam_json, resources_json, atlas_png, group_id = sys.argv[1:5]
+    asset = PamAsset(pam_json, resources_json, atlas_png, group_id)
+    if len(sys.argv) > 5 and sys.argv[5] == "--all":
+        out_dir = sys.argv[6] if len(sys.argv) > 6 else "export"
+        manifest = asset.export_all(out_dir)
+        print(f"exported {len(manifest)} frames to {out_dir}, labels: {[l for l,_,_ in asset.label_ranges()]}")
+    else:
+        frame_idx = sys.argv[5] if len(sys.argv) > 5 else "0"
+        out = sys.argv[6] if len(sys.argv) > 6 else "out.png"
+        canvas = asset.render_global_frame(int(frame_idx))
+        bbox = canvas.getbbox()
+        if bbox:
+            canvas = canvas.crop(bbox)
+        canvas.save(out)
+        print(f"wrote {out} size={canvas.size} bbox={bbox}")
+
+
+if __name__ == "__main__":
+    main()
