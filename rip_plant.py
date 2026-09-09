@@ -17,8 +17,8 @@ TOOLS_DIR = Path(__file__).resolve().parent
 WORK = Path("/mnt/d/PvZ2RipTest/rip_work")
 EXPORT_WIN_ROOT = Path("/mnt/d/PvZ2RipTest/export_all")
 POPSTUDIO_EXE = r"D:\PvZ\ReverseEngineering\PopStudio-src\PopStudio.ConsoleProject\bin\Release\net9.0\win-x64\PopStudio.exe"
-WW2OGG_EXE = r"D:\PvZ2RipTest\ww2ogg\ww2ogg.exe"
-WW2OGG_PCB = r"D:\PvZ2RipTest\ww2ogg\packed_codebooks_aoTuV_603.bin"
+WW2OGG_EXE = r"D:\PvZ\ReverseEngineering\PvZRipTools\tools\ww2ogg\ww2ogg.exe"
+WW2OGG_PCB = r"D:\PvZ\ReverseEngineering\PvZRipTools\tools\ww2ogg\packed_codebooks_aoTuV_603.bin"
 PAM_COMPOSITOR = TOOLS_DIR / "pam_compositor.py"
 BNK_EXTRACT = TOOLS_DIR / "bnk_extract.py"
 
