@@ -414,6 +414,106 @@ namespace PvZRip.Editor
             AssetDatabase.SaveAssets();
         }
 
+        // Tumbleweed was imported via ImportAndBuildAllRipped (build_only.txt
+        // restricted to just TUMBLEWEED so the other already-hand-tuned plants
+        // weren't touched). Its bulk-picked defaults are wrong for what the
+        // gameplay code needs: the plant should show its idle2_1 pose for the
+        // instant it exists before self-destructing (no literal "idle" label
+        // exists among idle1_1/idle1_2/attack/idle2_1/idle2_2/attack2/idle3_1/
+        // idle3_2/attack3, so the bulk importer's "idle" fallback picked
+        // whatever came first instead), and the projectile/hit sub-objects
+        // (each just "animation".."animation6", no plant-specific names at
+        // all) need to default to animation3 specifically - the rolling and
+        // impact poses TumbleweedProjectileBehaviorController expects to
+        // already be showing without having to explicitly switch state at
+        // runtime. animation3 also isn't "idle"/"water"/"loop"-named so the
+        // bulk importer's IsLoopingLabel heuristic built it as one-shot -
+        // forced to loop here since the projectile needs to keep rolling
+        // continuously, not freeze after one cycle.
+        static void FixTumbleweedAnimatorControllers()
+        {
+            const string root = "Assets/plantrip/tumbleweed/models/default";
+
+            SetDefaultState($"{root}/plant/ac.controller", "idle2_1");
+            SetDefaultState($"{root}/projectile/ac.controller", "animation3");
+            SetDefaultState($"{root}/projectile_hit/ac.controller", "animation3");
+
+            var clip = AssetDatabase.LoadAssetAtPath<AnimationClip>($"{root}/projectile/animation3/animation3.anim");
+            if (clip == null)
+            {
+                Debug.LogError("[PvZBundleBuilder] Could not find Tumbleweed projectile's animation3 clip to force looping.");
+            }
+            else
+            {
+                var settings = AnimationUtility.GetAnimationClipSettings(clip);
+                settings.loopTime = true;
+                AnimationUtility.SetAnimationClipSettings(clip, settings);
+            }
+        }
+
+        static void SetDefaultState(string controllerPath, string stateName)
+        {
+            var controller = AssetDatabase.LoadAssetAtPath<AnimatorController>(controllerPath);
+            if (controller == null)
+            {
+                Debug.LogError($"[PvZBundleBuilder] Could not load AnimatorController at {controllerPath}");
+                return;
+            }
+
+            var stateMachine = controller.layers[0].stateMachine;
+            AnimatorState found = null;
+            foreach (var childState in stateMachine.states)
+            {
+                if (childState.state.name == stateName)
+                {
+                    found = childState.state;
+                    break;
+                }
+            }
+
+            if (found == null)
+            {
+                Debug.LogError($"[PvZBundleBuilder] {controllerPath} is missing expected state '{stateName}'.");
+                return;
+            }
+
+            stateMachine.defaultState = found;
+            EditorUtility.SetDirty(controller);
+            AssetDatabase.SaveAssets();
+        }
+
+        // Rebuild-only, like BuildBambooSpartanBundle - Tumbleweed was already
+        // imported by ImportAndBuildAllRipped, this just fixes its Animator
+        // defaults and (re)tags/builds the bundle from current project state.
+        public static void BuildTumbleweedBundle()
+        {
+            const string outputDir = "D:/PvZ2RipTest/bundles";
+
+            FixTumbleweedAnimatorControllers();
+
+            TagPlantBundle("pvztumbleweedbundle", "tumbleweed",
+                hasProjectile: true, hasImpact: true, hasSeedPacket: true);
+
+            AssetDatabase.SaveAssets();
+            AssetDatabase.Refresh();
+            Directory.CreateDirectory(outputDir);
+
+            var manifest = BuildPipeline.BuildAssetBundles(
+                outputDir,
+                BuildAssetBundleOptions.ForceRebuildAssetBundle,
+                BuildTarget.StandaloneWindows64);
+
+            if (manifest == null)
+            {
+                Debug.LogError("[PvZBundleBuilder] BuildAssetBundles failed - manifest is null.");
+                EditorApplication.Exit(1);
+                return;
+            }
+
+            Debug.Log($"[PvZBundleBuilder] Built tumbleweed bundle -> {outputDir}/pvztumbleweedbundle");
+            EditorApplication.Exit(0);
+        }
+
         static void TagPlantBundle(string bundleName, string plantName, bool hasProjectile, bool hasImpact,
             bool hasSeedPacket)
         {
