@@ -866,12 +866,17 @@
   {
     "name": "DUSKLOBBER",
     "camel": "Dusklobber",
+    "skip_image_suffix": "_2",
     "pam_file": "/mnt/d/PvZ/ReverseEngineering/PvZ2-OBB-Rip/pvz2_original_unpacked/IMAGES/768/FULL/PLANT/DUSKLOBBER/DUSKLOBBER.PAM",
     "resources_json": "/mnt/d/PvZ2RipTest/RESOURCES.json",
     "atlas_png": "/mnt/d/PvZ/ReverseEngineering/PvZ2-OBB-Rip/pvz2_original_unpacked/ATLASES/PLANTDUSKLOBBER_1536_00.PNG",
     "group_id": "PlantDusklobber_1536",
     "bnk": "/mnt/d/PvZ/ReverseEngineering/PvZ2-OBB-Rip/pvz2_original_unpacked/SOUNDBANKS/PLANT_DUSKLOBBER.BNK",
-    "projectile": null,
+    "projectile": {
+      "alias": "DUSKLOBBERDEFAULT",
+      "attached_pam": "/mnt/d/PvZ/ReverseEngineering/PvZ2-OBB-Rip/pvz2_original_unpacked/IMAGES/768/FULL/EFFECTS/T_DUSKLOBBER_PROJECTILE/T_DUSKLOBBER_PROJECTILE.PAM",
+      "impact_pam": "/mnt/d/PvZ/ReverseEngineering/PvZ2-OBB-Rip/pvz2_original_unpacked/IMAGES/768/FULL/EFFECTS/T_DUSKLOBBER_PROJECTILE_HIT/T_DUSKLOBBER_PROJECTILE_HIT.PAM"
+    },
     "seedpacket": {
       "atlas_png": "/mnt/d/PvZ/ReverseEngineering/PvZ2-OBB-Rip/pvz2_original_unpacked/ATLASES/UI_SEEDPACKETS_1536_00.PNG",
       "rect": [

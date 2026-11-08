@@ -94,6 +94,10 @@ namespace PvZRip.Editor
                         hasImpact: Directory.Exists(projectileHitFramesDir),
                         hasSeedPacket: !string.IsNullOrEmpty(seedPacketPng));
 
+                    // Frame-driven PlaySound Animation Events from the rip's sounds_manifest.json
+                    // (no-op if the plant was ripped before plant_sounds.py existed).
+                    BakeSoundEventsForPlant(plantName, rawName);
+
                     succeeded.Add(plantName);
                 }
                 catch (Exception e)
@@ -337,6 +341,43 @@ namespace PvZRip.Editor
             EditorApplication.Exit(0);
         }
 
+        // Safe, rebuild-only re-application of FixCelerystalkerAnimatorController
+        // (e.g. after tweaking which state is the Animator's default) onto the
+        // ALREADY-imported prefab - deliberately does NOT call
+        // BuildCelerystalkerBundle above, which reimports from scratch and
+        // would wipe out hand-baked Animation Events added in the Editor
+        // since import. FixCelerystalkerAnimatorController itself is
+        // idempotent (just adjusts the existing controller asset in place),
+        // safe to call standalone like this.
+        public static void FixCelerystalkerDefaultsAndBuild()
+        {
+            const string outputDir = "D:/PvZ2RipTest/bundles";
+            const string plantName = "celerystalker";
+
+            FixCelerystalkerAnimatorController($"Assets/plantrip/{plantName}/models/default/plant/ac.controller");
+
+            TagPlantBundle("pvzcelerystalkerbundle", plantName, hasProjectile: false, hasImpact: false, hasSeedPacket: true);
+
+            AssetDatabase.SaveAssets();
+            AssetDatabase.Refresh();
+            Directory.CreateDirectory(outputDir);
+
+            var manifest = BuildPipeline.BuildAssetBundles(
+                outputDir,
+                BuildAssetBundleOptions.ForceRebuildAssetBundle,
+                BuildTarget.StandaloneWindows64);
+
+            if (manifest == null)
+            {
+                Debug.LogError("[PvZBundleBuilder] BuildAssetBundles failed - manifest is null.");
+                EditorApplication.Exit(1);
+                return;
+            }
+
+            Debug.Log($"[PvZBundleBuilder] Built celerystalker bundle (defaults fix only, no reimport) -> {outputDir}/pvzcelerystalkerbundle");
+            EditorApplication.Exit(0);
+        }
+
         // Celery Stalker's clip names (idle/idle2/idle3/idle4/idle_down/
         // idle_down2/idle_down3/attack_loop/water) all contain "idle"/"loop"/
         // "water", so the bulk importer's IsLoopingLabel heuristic already
@@ -404,10 +445,15 @@ namespace PvZRip.Editor
             Rewire("attack", "attack_loop");
             Rewire("attack_end", "idle");
 
-            var idleDownState = Get("idle_down");
-            if (idleDownState != null)
+            // Real PvZ2 Celery Stalker starts standing up the instant he's
+            // planted, not hidden - "idle" (not "idle_down") is the correct
+            // default so no PlayAnimation call is needed for the starting
+            // pose at all (calling PlayAnimation this early in a plant's
+            // life doesn't reliably take effect - confirmed as a real bug).
+            var idleState = Get("idle");
+            if (idleState != null)
             {
-                stateMachine.defaultState = idleDownState;
+                stateMachine.defaultState = idleState;
             }
 
             EditorUtility.SetDirty(controller);
@@ -417,24 +463,32 @@ namespace PvZRip.Editor
         // Tumbleweed was imported via ImportAndBuildAllRipped (build_only.txt
         // restricted to just TUMBLEWEED so the other already-hand-tuned plants
         // weren't touched). Its bulk-picked defaults are wrong for what the
-        // gameplay code needs: the plant should show its idle2_1 pose for the
-        // instant it exists before self-destructing (no literal "idle" label
-        // exists among idle1_1/idle1_2/attack/idle2_1/idle2_2/attack2/idle3_1/
-        // idle3_2/attack3, so the bulk importer's "idle" fallback picked
-        // whatever came first instead), and the projectile/hit sub-objects
-        // (each just "animation".."animation6", no plant-specific names at
-        // all) need to default to animation3 specifically - the rolling and
-        // impact poses TumbleweedProjectileBehaviorController expects to
-        // already be showing without having to explicitly switch state at
-        // runtime. animation3 also isn't "idle"/"water"/"loop"-named so the
-        // bulk importer's IsLoopingLabel heuristic built it as one-shot -
-        // forced to loop here since the projectile needs to keep rolling
-        // continuously, not freeze after one cycle.
+        // gameplay code needs.
+        //
+        // Plant default is "attack2" (was "idle2_1") - same fix as Celery
+        // Stalker's idle_down->idle: calling PlayAnimation this early in a
+        // plant's life doesn't reliably take effect (confirmed repeatedly),
+        // so instead of trying to trigger the vanish-into-light transition at
+        // spawn, the Animator just starts on it directly. No literal "idle"
+        // label exists among idle1_1/idle1_2/attack/idle2_1/idle2_2/attack2/
+        // idle3_1/idle3_2/attack3, so the bulk importer's "idle" fallback
+        // picked whatever came first instead, hence needing this fix at all.
+        // The launch sound is now baked directly onto attack2 in the Editor
+        // (by hand, alongside the projectile's whoosh sounds) rather than
+        // injected here - no PlaySound baking needed in this method anymore.
+        //
+        // projectile/projectile_hit still default to animation3 specifically
+        // - the rolling and impact poses TumbleweedProjectileBehaviorController
+        // expects to already be showing without having to explicitly switch
+        // state at runtime. animation3 also isn't "idle"/"water"/"loop"-named
+        // so the bulk importer's IsLoopingLabel heuristic built it as
+        // one-shot - forced to loop here since the projectile needs to keep
+        // rolling continuously, not freeze after one cycle.
         static void FixTumbleweedAnimatorControllers()
         {
             const string root = "Assets/plantrip/tumbleweed/models/default";
 
-            SetDefaultState($"{root}/plant/ac.controller", "idle2_1");
+            SetDefaultState($"{root}/plant/ac.controller", "attack2");
             SetDefaultState($"{root}/projectile/ac.controller", "animation3");
             SetDefaultState($"{root}/projectile_hit/ac.controller", "animation3");
 
@@ -448,33 +502,6 @@ namespace PvZRip.Editor
                 var settings = AnimationUtility.GetAnimationClipSettings(clip);
                 settings.loopTime = true;
                 AnimationUtility.SetAnimationClipSettings(clip, settings);
-            }
-
-            // Launch sound baked onto idle2_1 (the only pose the plant ever
-            // shows - it fires and dies on its first Update tick) rather than
-            // played programmatically, same as Bonkchoy's PlaySound events -
-            // the hit sound is the one tied to code, via
-            // TumbleweedProjectileDefinition.SetHitSfx.
-            var idleClip = AssetDatabase.LoadAssetAtPath<AnimationClip>($"{root}/plant/idle2_1/idle2_1.anim");
-            var launchSfx = AssetDatabase.LoadAssetAtPath<AudioClip>("Assets/plantrip/tumbleweed/sounds/51358952.ogg");
-            if (idleClip == null || launchSfx == null)
-            {
-                Debug.LogError($"[PvZBundleBuilder] Could not bake Tumbleweed's launch sound - idleClip={idleClip != null}, launchSfx={launchSfx != null}.");
-            }
-            else
-            {
-                var events = AnimationUtility.GetAnimationEvents(idleClip);
-                var newEvents = new AnimationEvent[events.Length + 1];
-                events.CopyTo(newEvents, 0);
-                newEvents[events.Length] = new AnimationEvent
-                {
-                    time = 0f,
-                    functionName = "PlaySound",
-                    objectReferenceParameter = launchSfx,
-                };
-                AnimationUtility.SetAnimationEvents(idleClip, newEvents);
-                EditorUtility.SetDirty(idleClip);
-                AssetDatabase.SaveAssets();
             }
         }
 
@@ -538,6 +565,334 @@ namespace PvZRip.Editor
             }
 
             Debug.Log($"[PvZBundleBuilder] Built tumbleweed bundle -> {outputDir}/pvztumbleweedbundle");
+            EditorApplication.Exit(0);
+        }
+
+        // First-time import + build for Iceweed - real PvZ2 rip, never imported before, same
+        // fresh-import-then-fix-in-code approach as Endurian/Celery Stalker. No projectile/
+        // projectile_hit passed (Plant Food's sawblade effect is out of scope - this mod doesn't
+        // implement Plant Food at all, same as Celery Stalker's own plantfood* clips being
+        // imported-but-left-unused rather than wired up).
+        public static void BuildIceweedBundle()
+        {
+            const float sampleRate = 12f;
+            const string plantName = "iceweed";
+            const string framesDir = "D:/PvZ2RipTest/export_all/ICEWEED/frames";
+            const string soundsDir = "D:/PvZ2RipTest/export_all/ICEWEED/sounds";
+            const string seedPacketPng = "D:/PvZ2RipTest/export_all/ICEWEED/seedpacket/SPR_SeedPacket_Iceweed.png";
+            const string outputDir = "D:/PvZ2RipTest/bundles";
+
+            PvZRipImporter.ImportPlantFull(plantName, framesDir, soundsDir, null, null, seedPacketPng, sampleRate);
+
+            string modelsRoot = $"Assets/plantrip/{plantName}/models/default";
+            FixIceweedAnimatorController($"{modelsRoot}/plant/ac.controller");
+
+            TagPlantBundle("pvziceweedbundle", plantName, hasProjectile: false, hasImpact: false, hasSeedPacket: true);
+
+            AssetDatabase.SaveAssets();
+            AssetDatabase.Refresh();
+            Directory.CreateDirectory(outputDir);
+
+            var manifest = BuildPipeline.BuildAssetBundles(
+                outputDir,
+                BuildAssetBundleOptions.ForceRebuildAssetBundle,
+                BuildTarget.StandaloneWindows64);
+
+            if (manifest == null)
+            {
+                Debug.LogError("[PvZBundleBuilder] BuildAssetBundles failed - manifest is null.");
+                EditorApplication.Exit(1);
+                return;
+            }
+
+            Debug.Log($"[PvZBundleBuilder] Built iceweed bundle -> {outputDir}/pvziceweedbundle");
+            EditorApplication.Exit(0);
+        }
+
+        // Iceweed's real rip has no "idle"/"loop"-named default and no separate attack_loop
+        // state the way Celery Stalker does - just stage1_idle1/stage1_idle2 (a visual-variety
+        // pair, only stage1_idle1 is actually used - see IceweedBehaviorController's own comment)
+        // and a single one-shot stage1_attack "poke" clip. Two fixes needed:
+        //   (1) stage1_attack forced to loop, so IceweedBehaviorController's single PlayAnimation
+        //       call at the start of an attack keeps it visually poking for as long as a zombie
+        //       remains, instead of playing once and auto-returning to idle after ~1 frame while
+        //       the plant keeps dealing damage every tick underneath a now-idle-looking sprite.
+        //   (2) default state forced to stage1_idle1 - the bulk importer's "idle" fallback only
+        //       matches a state literally named "idle", so without this it silently defaults to
+        //       whichever label the manifest happened to list first (stage1_idle1 as of this
+        //       writing, but by accident, not by any rule this fix can rely on).
+        // stage1_idle2, every stage2_* tier, and every stage1_pf_*/stage2_pf_* Plant Food clip
+        // are imported but deliberately left alone, same as Celery Stalker's own unused
+        // plantfood* states - this mod doesn't implement Plant Food or the stage2 upgrade tier.
+        static void FixIceweedAnimatorController(string controllerPath)
+        {
+            var controller = AssetDatabase.LoadAssetAtPath<AnimatorController>(controllerPath);
+            if (controller == null)
+            {
+                Debug.LogError($"[PvZBundleBuilder] Could not load Iceweed's AnimatorController at {controllerPath}");
+                return;
+            }
+
+            var stateMachine = controller.layers[0].stateMachine;
+            var statesByName = new Dictionary<string, AnimatorState>();
+            foreach (var childState in stateMachine.states)
+            {
+                statesByName[childState.state.name] = childState.state;
+            }
+
+            if (!statesByName.TryGetValue("stage1_attack", out var attackState))
+            {
+                Debug.LogError("[PvZBundleBuilder] Iceweed AnimatorController is missing expected state 'stage1_attack'.");
+            }
+            else
+            {
+                var clip = AssetDatabase.LoadAssetAtPath<AnimationClip>(
+                    "Assets/plantrip/iceweed/models/default/plant/stage1_attack/stage1_attack.anim");
+                if (clip == null)
+                {
+                    Debug.LogError("[PvZBundleBuilder] Could not find Iceweed clip 'stage1_attack' to force looping.");
+                }
+                else
+                {
+                    var settings = AnimationUtility.GetAnimationClipSettings(clip);
+                    settings.loopTime = true;
+                    AnimationUtility.SetAnimationClipSettings(clip, settings);
+                }
+
+                // A looping clip has no exit time to auto-return from, so the bulk importer's
+                // one-shot exit-time transition (attack -> bulk default, added before this fix
+                // ever ran) needs clearing - IceweedBehaviorController itself calls
+                // PlayAnimation(IdleState) explicitly once no zombie remains instead.
+                foreach (var t in attackState.transitions)
+                {
+                    attackState.RemoveTransition(t);
+                }
+            }
+
+            if (statesByName.TryGetValue("stage1_idle1", out var idleState))
+            {
+                stateMachine.defaultState = idleState;
+            }
+            else
+            {
+                Debug.LogError("[PvZBundleBuilder] Iceweed AnimatorController is missing expected state 'stage1_idle1'.");
+            }
+
+            EditorUtility.SetDirty(controller);
+            AssetDatabase.SaveAssets();
+        }
+
+        // ------------------------------------------------------------------------------------
+        // Frame-driven sound events.
+        //
+        // PvZRipTools/plant_sounds.py derives, from the PvZ2 data itself, which sound fires on
+        // which frame of which animation (PlaySample commands in the PAM -> GLOBAL_DATA.BNK
+        // events -> WEM ids) and writes D:/PvZ2RipTest/export_all/<NAME>/sounds_manifest.json
+        // ("frame" = offset inside the label = index of the exported frame, one layer per Play
+        // action, "pick" = the one sound a baked event uses). Here each layer becomes ONE
+        // "PlaySound" Animation Event (AnimationScripts.PlaySound, clip as the object reference)
+        // on that clip's own keyframe time for that frame - so it follows the game's animation
+        // speed settings by construction, with no code-side timers or fps maths.
+        //
+        // Idempotent: it first removes every PlaySound/PlaySoundEvent event on the clips the
+        // manifest covers, so re-running never stacks duplicates and hand-assigned events that
+        // disagree with the PAM get replaced. Any OTHER event (e.g. ExecuteAttack) is left alone.
+        // Safe on an already-imported, hand-tuned plant: it only touches Animation Events.
+        // ------------------------------------------------------------------------------------
+        [Serializable] class SndLayer { public int[] sounds; public int pick; }
+        [Serializable] class SndEvent { public int frame; public string sample; public SndLayer[] layers; }
+        [Serializable] class SndAction { public int frame; public string command; }
+        [Serializable] class SndAnimation { public string label; public int frames; public SndEvent[] events; public SndAction[] actions; }
+
+        // Plants whose "attack" clip also gets an "ExecuteAttack" Animation Event on the PAM's
+        // use_action frame (the throw/launch frame). CustomPlantBehaviorController.OnAnimationAttackEvent
+        // spawns the projectile from it, so launches follow the game speed instead of a code timer.
+        // Opt-in on purpose: shipped plants keep their clips untouched.
+        static readonly HashSet<string> LaunchEventPlants = new HashSet<string> { "dusklobber" };
+        [Serializable] class SndManifest { public SndAnimation[] animations; }
+
+        const string ExportRoot = "D:/PvZ2RipTest/export_all";
+
+        static SndManifest LoadSoundManifest(string exportName, string sub)
+        {
+            string path = sub == "plant"
+                ? $"{ExportRoot}/{exportName}/sounds_manifest.json"
+                : $"{ExportRoot}/{exportName}/{sub}/sounds_manifest.json";
+            return File.Exists(path) ? JsonUtility.FromJson<SndManifest>(File.ReadAllText(path)) : null;
+        }
+
+        // Set by BakeSoundEventsForPlant: the export_all folder name of the plant being baked.
+        static string bakeExportName;
+
+        static AudioClip LoadPlantSound(string plantName, int wem)
+        {
+            string path = $"Assets/plantrip/{plantName}/sounds/{wem}.ogg";
+            var clip = AssetDatabase.LoadAssetAtPath<AudioClip>(path);
+            if (clip == null)
+            {
+                // Shared-bank sounds (AUDIO_ALWAYS_LOADED etc.) are ripped into the export's
+                // sounds/ folder by plant_sounds.py but were never part of the original import.
+                string src = $"{ExportRoot}/{bakeExportName}/sounds/{wem}.ogg";
+                if (File.Exists(src))
+                {
+                    Directory.CreateDirectory($"Assets/plantrip/{plantName}/sounds");
+                    File.Copy(src, path, true);
+                    AssetDatabase.ImportAsset(path);
+                    string bundle = AssetImporter.GetAtPath($"Assets/plantrip/{plantName}/models/default/plant/{plantName}.prefab")?.assetBundleName;
+                    if (!string.IsNullOrEmpty(bundle))
+                    {
+                        AssetImporter.GetAtPath(path)?.SetAssetBundleNameAndVariant(bundle, "");
+                    }
+                    clip = AssetDatabase.LoadAssetAtPath<AudioClip>(path);
+                    Debug.Log($"[BakeSound] pulled {wem}.ogg into {plantName}/sounds (bundle '{bundle}')");
+                }
+            }
+            if (clip == null)
+            {
+                Debug.LogWarning($"[BakeSound] missing {path} (re-run rip_plant.py / plant_sounds.py for this plant)");
+            }
+            return clip;
+        }
+
+        static float[] FrameTimes(AnimationClip clip)
+        {
+            var binding = EditorCurveBinding.PPtrCurve("", typeof(SpriteRenderer), "m_Sprite");
+            var keys = AnimationUtility.GetObjectReferenceCurve(clip, binding);
+            return keys == null ? new float[0] : keys.Select(k => k.time).ToArray();
+        }
+
+        // Replaces a clip's PlaySound/PlaySoundEvent events with one PlaySound per (event, layer).
+        // `events` is (frame offset, sound pick) pairs. Returns a one-line summary.
+        // `launchFrame` >= 0 also (re)places the clip's single ExecuteAttack event at that frame offset.
+        static string ReplaceSoundEvents(string plantName, string clipPath, List<(int frame, int pick)> events, int launchFrame = -1)
+        {
+            var clip = AssetDatabase.LoadAssetAtPath<AnimationClip>(clipPath);
+            if (clip == null) return null;
+
+            var times = FrameTimes(clip);
+            var kept = new List<AnimationEvent>();
+            var removed = new List<string>();
+            foreach (var ev in AnimationUtility.GetAnimationEvents(clip))
+            {
+                if (ev.functionName == "PlaySound" || ev.functionName == "PlaySoundEvent")
+                {
+                    removed.Add($"{(ev.objectReferenceParameter != null ? ev.objectReferenceParameter.name : ev.stringParameter)}@{ev.time:0.###}");
+                }
+                else if (launchFrame >= 0 && ev.functionName == "ExecuteAttack")
+                {
+                    removed.Add($"ExecuteAttack@{ev.time:0.###}");
+                }
+                else
+                {
+                    kept.Add(ev);
+                }
+            }
+
+            var added = new List<string>();
+            foreach (var (frame, pick) in events)
+            {
+                var sfx = LoadPlantSound(plantName, pick);
+                if (sfx == null || times.Length == 0) continue;
+                float t = times[Math.Min(frame, times.Length - 1)];
+                if (frame >= times.Length)
+                {
+                    Debug.LogWarning($"[BakeSound] {clipPath}: event frame {frame} is past the clip's {times.Length} keyframes - clamped to the last frame.");
+                }
+                kept.Add(new AnimationEvent { time = t, functionName = "PlaySound", objectReferenceParameter = sfx });
+                added.Add($"{pick}@{t:0.###}");
+            }
+
+            if (launchFrame >= 0 && times.Length > 0)
+            {
+                float t = times[Math.Min(launchFrame, times.Length - 1)];
+                kept.Add(new AnimationEvent { time = t, functionName = "ExecuteAttack" });
+                added.Add($"ExecuteAttack@{t:0.###}");
+            }
+
+            AnimationUtility.SetAnimationEvents(clip, kept.ToArray());
+            EditorUtility.SetDirty(clip);
+            return $"removed [{string.Join(", ", removed)}] added [{string.Join(", ", added)}]";
+        }
+
+        // Bakes a plant's own animations only. Projectile HIT sounds are deliberately NOT baked: in this
+        // mod they are code-driven (CustomProjectileDefinition.SetHitSfx, like Tumbleweed/Bloomerang),
+        // so an Animation Event there would play the sound twice. plant_sounds.py prints the SetHitSfx
+        // line for each plant instead.
+        public static void BakeSoundEventsForPlant(string plantName, string exportName)
+        {
+            bakeExportName = exportName;
+            string modelsRoot = $"Assets/plantrip/{plantName}/models/default";
+            var manifest = LoadSoundManifest(exportName, "plant");
+            if (manifest == null || manifest.animations == null)
+            {
+                Debug.Log($"[BakeSound] {plantName}: no sounds_manifest.json - skipped.");
+                return;
+            }
+
+            AssetDatabase.Refresh();
+            int clipsTouched = 0;
+            foreach (var anim in manifest.animations)
+            {
+                string clipPath = $"{modelsRoot}/plant/{anim.label}/{anim.label}.anim";
+                var wanted = new List<(int, int)>();
+                foreach (var e in anim.events ?? new SndEvent[0])
+                    foreach (var l in e.layers ?? new SndLayer[0])
+                        wanted.Add((e.frame, l.pick));
+
+                int launchFrame = -1;
+                if (LaunchEventPlants.Contains(plantName) && anim.label == "attack")
+                    foreach (var a in anim.actions ?? new SndAction[0])
+                        if (a.command == "use_action") { launchFrame = a.frame; break; }
+
+                var summary = ReplaceSoundEvents(plantName, clipPath, wanted, launchFrame);
+                if (summary == null)
+                {
+                    if (wanted.Count > 0)
+                        Debug.Log($"[BakeSound] {plantName}/{anim.label}: no such clip in the project ({wanted.Count} sound(s) not baked).");
+                    continue;
+                }
+                clipsTouched++;
+                Debug.Log($"[BakeSound] {plantName}/{anim.label}: {summary}");
+            }
+
+            AssetDatabase.SaveAssets();
+            Debug.Log($"[BakeSound] {plantName}: {clipsTouched} clip(s) updated.");
+        }
+
+        // Batch entry point: re-bake sounds onto ALREADY-imported plants (never re-imports, so
+        // hand-tuned controllers survive) and rebuild every tagged bundle with the plants' existing
+        // bundle names. Reads D:/PvZ2RipTest/bake_sounds.txt: one plant per line, lowercase project
+        // folder name.
+        public static void BakeSoundEventsListed()
+        {
+            const string listFile = "D:/PvZ2RipTest/bake_sounds.txt";
+            const string outputDir = "D:/PvZ2RipTest/bundles";
+            if (!File.Exists(listFile))
+            {
+                Debug.LogError($"[BakeSound] {listFile} not found.");
+                EditorApplication.Exit(1);
+                return;
+            }
+
+            foreach (var raw in File.ReadAllLines(listFile))
+            {
+                var parts = raw.Trim().Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
+                if (parts.Length == 0) continue;
+                BakeSoundEventsForPlant(parts[0].ToLowerInvariant(), parts[0].ToUpperInvariant());
+            }
+
+            AssetDatabase.SaveAssets();
+            AssetDatabase.Refresh();
+            Directory.CreateDirectory(outputDir);
+            var built = BuildPipeline.BuildAssetBundles(outputDir, BuildAssetBundleOptions.ForceRebuildAssetBundle,
+                BuildTarget.StandaloneWindows64);
+            if (built == null)
+            {
+                Debug.LogError("[BakeSound] BuildAssetBundles failed - manifest is null.");
+                EditorApplication.Exit(1);
+                return;
+            }
+            Debug.Log($"[BakeSound] Rebuilt {built.GetAllAssetBundles().Length} bundle(s) -> {outputDir}");
             EditorApplication.Exit(0);
         }
 

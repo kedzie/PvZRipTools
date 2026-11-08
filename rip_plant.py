@@ -5,6 +5,7 @@
 Usage: rip_plant.py <plant_json_entry_index_or_name> [--all]
 """
 import json
+import os
 import shutil
 import subprocess
 import sys
@@ -24,6 +25,7 @@ BNK_EXTRACT = TOOLS_DIR / "bnk_extract.py"
 
 sys.path.insert(0, str(TOOLS_DIR))
 from bnk_extract import extract_bnk  # noqa: E402
+import plant_sounds  # noqa: E402
 
 
 def to_windows_path(p: Path) -> str:
@@ -44,12 +46,13 @@ def run_popstudio_decode_pam(pam_file: Path):
     return out
 
 
-def run_pam_compositor(pam_json, resources_json, atlas_png, group_id, out_dir: Path):
+def run_pam_compositor(pam_json, resources_json, atlas_png, group_id, out_dir: Path, skip_image_suffix: str = ""):
     out_dir.mkdir(parents=True, exist_ok=True)
     result = subprocess.run(
         ["python3", str(PAM_COMPOSITOR), str(pam_json), str(resources_json), str(atlas_png), group_id,
          "--all", str(out_dir)],
         capture_output=True, text=True,
+        env={**os.environ, "PAM_SKIP_IMAGE_SUFFIX": skip_image_suffix},
     )
     if result.returncode != 0:
         raise RuntimeError(f"pam_compositor failed: {result.stdout}\n{result.stderr}")
@@ -107,15 +110,23 @@ def convert_wems_to_ogg(wem_dir: Path, ogg_dir: Path):
 # this atlas is ever read - if a future icon source atlas turns out to need
 # the same fix, key this off the .PTX header's format field instead of the
 # filename.
-def crop_seedpacket(seedpacket: dict, out_png: Path):
+def crop_seedpacket(seedpacket: dict, out_png: Path, frames_dir: Path = None) -> str:
+    """Always R/B-swaps UI_SEEDPACKETS tiles (confirmed by eye for every shipped plant AND Dusk
+    Lobber - a green body with purple thorns is the correct look). An automatic "does the packet
+    match the body frames" heuristic was tried and was WRONG for Dusk Lobber, because its body
+    frames render blue for a different reason (see README "Known issues"); don't reintroduce it.
+    `frames_dir` is accepted and ignored so callers don't break."""
     atlas = Image.open(seedpacket["atlas_png"]).convert("RGBA")
+    note = "raw"
     if Path(seedpacket["atlas_png"]).name.upper().startswith("UI_SEEDPACKETS"):
         r, g, b, a = atlas.split()
         atlas = Image.merge("RGBA", (b, g, r, a))
+        note = "R/B swapped (atlas default)"
     ax, ay, aw, ah = seedpacket["rect"]
     crop = atlas.crop((ax, ay, ax + aw, ay + ah))
     out_png.parent.mkdir(parents=True, exist_ok=True)
     crop.save(out_png)
+    return note
 
 
 def rip_plant(entry: dict) -> dict:
@@ -129,7 +140,8 @@ def rip_plant(entry: dict) -> dict:
 
     frames_dir = plant_work / "frames"
     compositor_msg = run_pam_compositor(pam_json, entry["resources_json"], entry["atlas_png"],
-                                         entry["group_id"], frames_dir)
+                                         entry["group_id"], frames_dir,
+                                         skip_image_suffix=entry.get("skip_image_suffix", ""))
 
     wem_dir = plant_work / "wem"
     wem_ids = extract_bnk(Path(entry["bnk"]), wem_dir)
@@ -171,14 +183,28 @@ def rip_plant(entry: dict) -> dict:
     seedpacket = entry.get("seedpacket")
     if seedpacket:
         try:
-            crop_seedpacket(seedpacket, export_dir / "seedpacket" / f"SPR_SeedPacket_{entry['camel']}.png")
+            seed_note = crop_seedpacket(seedpacket, export_dir / "seedpacket" / f"SPR_SeedPacket_{entry['camel']}.png",
+                                        export_dir / "frames")
+            print(f"    seed packet: {seed_note}")
             seedpacket_ok = True
         except Exception:
             seedpacket_ok = False
 
+    # Frame-driven sound events (PlaySample commands in the PAM -> GLOBAL_DATA.BNK events ->
+    # WEM ids) + any shared-bank sounds they use. See plant_sounds.py / README "Sounds".
+    sounds_msg = None
+    try:
+        written = plant_sounds.write_manifests(entry, export_dir)
+        n_shared = plant_sounds.extract_shared_sounds(entry, [m for _, m, _ in written if m], export_dir)
+        n_events = sum(len(a["events"]) for _, m, _ in written if m for a in m["animations"])
+        sounds_msg = f"{n_events} sound event(s), {n_shared} shared sound(s) ripped"
+    except Exception as e:
+        sounds_msg = f"FAILED: {e}"
+
     return {
         "name": name,
         "frames_msg": compositor_msg,
+        "sounds_msg": sounds_msg,
         "wem_total": len(wem_ids),
         "ogg_converted": n_converted,
         "projectile_msg": projectile_msg,
@@ -211,6 +237,8 @@ def main():
                 extras.append(f"hit={'OK' if not res['impact_msg'].startswith('FAILED') else 'FAIL'}")
             if res["seedpacket_ok"]:
                 extras.append("seed=OK")
+            if res.get("sounds_msg"):
+                extras.append(f"events: {res['sounds_msg']}")
             extra_str = f" | {' '.join(extras)}" if extras else ""
             print(f"OK  {entry['name']}: {res['frames_msg']} | wem {res['ogg_converted']}/{res['wem_total']}{extra_str}")
         except Exception as e:

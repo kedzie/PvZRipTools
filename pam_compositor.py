@@ -10,6 +10,7 @@ convention already observed in PvZCompleteCollection's shipped AssetBundle-Unity
 """
 import json
 import math
+import os
 import sys
 from pathlib import Path
 
@@ -54,6 +55,15 @@ def mat_invert(m):
     itx = -(ia * tx + ic * ty)
     ity = -(ib * tx + id_ * ty)
     return (ia, ib, ic, id_, itx, ity)
+
+
+# Some PAMs carry TWO complete art sets drawn on top of each other and let the game pick one at
+# runtime (Dusk Lobber: every part exists as "<name>" - the normal green plant - and "<name>_2",
+# the blue "_dark" variant, both appended on frame 0 with no colour/alpha transform hiding either).
+# Flattening them composites the dark set over the normal one, so the export came out blue. Set
+# PAM_SKIP_IMAGE_SUFFIX (rip_plant.py does it from plants.json "skip_image_suffix") to drop the
+# images whose name ends with it. Default off - every other plant renders exactly as before.
+SKIP_IMAGE_SUFFIX = os.environ.get("PAM_SKIP_IMAGE_SUFFIX", "")
 
 
 class PamAsset:
@@ -128,6 +138,11 @@ class PamAsset:
                 child_frame = layer.get("anim_frame_num", 0) or 0
                 leaves.extend(self.resolve_leaves(child, child_frame, world_mat, depth + 1))
             else:
+                if SKIP_IMAGE_SUFFIX:
+                    img = self.pam["image"][resource]
+                    img_name = (img["name"] if isinstance(img, dict) else str(img)).split("|")[0]
+                    if img_name.endswith(SKIP_IMAGE_SUFFIX):
+                        continue
                 crop, img_local_mat = self.image_rect_and_crop(resource)
                 if crop is None:
                     continue
