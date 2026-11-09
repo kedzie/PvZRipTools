@@ -1,0 +1,15 @@
+# WHITELIST: only the project skeleton below is tracked. EVERYTHING else under unity/ is ignored on
+# purpose - above all the imported ripped PvZ2 assets (Assets/plantrip/**), which are PopCap/EA's and
+# must never be pushed. They are regenerated at any time by rip_plant.py + the import step.
+/*
+!/.gitignore
+!/README.md
+!/Assets/
+/Assets/*
+!/Assets/Editor/
+!/Assets/Editor.meta
+!/ProjectSettings/
+!/Packages/
+# Unity writes these into the whitelisted folders
+/ProjectSettings/*.log
+/Packages/*.log
