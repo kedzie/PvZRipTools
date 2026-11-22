@@ -327,13 +327,17 @@ def extract_shared_sounds(entry: dict, manifests, export_dir: Path = None):
     own = Path(entry["bnk"]).name
     need = {}  # bank name -> {wem ids}
     for m in manifests:
-        for a in m["animations"]:
-            for e in a["events"]:
-                for layer in e["layers"]:
-                    pick = layer["pick"]
-                    bank = layer["banks"].get(str(pick))
-                    if bank and bank != own and not (sounds_dir / f"{pick}.ogg").exists():
-                        need.setdefault(bank, set()).add(pick)
+        # Animation events, plus the projectile's code-driven impact sound (SetHitSfx): its pick may
+        # also live in a shared bank (Mega Gatling's giant pea: AUDIO_ALWAYS_LOADED).
+        layer_lists = [e["layers"] for a in m["animations"] for e in a["events"]]
+        if m.get("impact_sound_event"):
+            layer_lists.append(m["impact_sound_event"]["layers"])
+        for layers in layer_lists:
+            for layer in layers:
+                pick = layer["pick"]
+                bank = layer["banks"].get(str(pick))
+                if bank and bank != own and not (sounds_dir / f"{pick}.ogg").exists():
+                    need.setdefault(bank, set()).add(pick)
     if not need:
         return 0
     tmp = rip_plant.WORK / f"{entry['name']}_shared"

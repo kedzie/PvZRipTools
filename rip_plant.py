@@ -170,8 +170,11 @@ def rip_plant(entry: dict) -> dict:
             try:
                 proj_pam_json = run_popstudio_decode_pam(Path(projectile["attached_pam"]))
                 proj_frames = plant_work / "projectile_frames"
-                projectile_msg = run_pam_compositor(proj_pam_json, entry["resources_json"], entry["atlas_png"],
-                                                      entry["group_id"], proj_frames)
+                # The projectile art can live in another atlas than the plant's (Mega Gatling's giant
+                # pea is in LEVELCOMMON): optional "atlas_png"/"group_id" in the projectile block.
+                projectile_msg = run_pam_compositor(proj_pam_json, entry["resources_json"],
+                                                      projectile.get("atlas_png", entry["atlas_png"]),
+                                                      projectile.get("group_id", entry["group_id"]), proj_frames)
                 shutil.copytree(proj_frames, export_dir / "projectile" / "frames")
             except Exception as e:
                 projectile_msg = f"FAILED: {e}"
@@ -179,8 +182,9 @@ def rip_plant(entry: dict) -> dict:
             try:
                 hit_pam_json = run_popstudio_decode_pam(Path(projectile["impact_pam"]))
                 hit_frames = plant_work / "projectile_hit_frames"
-                impact_msg = run_pam_compositor(hit_pam_json, entry["resources_json"], entry["atlas_png"],
-                                                  entry["group_id"], hit_frames)
+                impact_msg = run_pam_compositor(hit_pam_json, entry["resources_json"],
+                                                  projectile.get("atlas_png", entry["atlas_png"]),
+                                                  projectile.get("group_id", entry["group_id"]), hit_frames)
                 shutil.copytree(hit_frames, export_dir / "projectile_hit" / "frames")
             except Exception as e:
                 impact_msg = f"FAILED: {e}"

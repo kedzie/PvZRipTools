@@ -1922,7 +1922,13 @@
     "atlas_png": "/mnt/d/PvZ/ReverseEngineering/PvZ2-OBB-Rip/pvz2_original_unpacked/ATLASES/PLANTMEGAGATLING_1536_00.PNG",
     "group_id": "PlantMegaGatling_1536",
     "bnk": "/mnt/d/PvZ/ReverseEngineering/PvZ2-OBB-Rip/pvz2_original_unpacked/SOUNDBANKS/PLANT_GATLINGPEA.BNK",
-    "projectile": null,
+    "projectile": {
+      "alias": "GIANTPEADEFAULT",
+      "attached_pam": "/mnt/d/PvZ/ReverseEngineering/PvZ2-OBB-Rip/pvz2_original_unpacked/IMAGES/768/INITIAL/EFFECTS/REPEATER_PLANTFOOD_GIANTPEA/REPEATER_PLANTFOOD_GIANTPEA.PAM",
+      "impact_pam": "/mnt/d/PvZ/ReverseEngineering/PvZ2-OBB-Rip/pvz2_original_unpacked/IMAGES/768/INITIAL/EFFECTS/SPLAT_GIANTPEA/SPLAT_GIANTPEA.PAM",
+      "atlas_png": "/mnt/d/PvZ/ReverseEngineering/PvZ2-OBB-Rip/pvz2_original_unpacked/ATLASES/LEVELCOMMON_1536_00.PNG",
+      "group_id": "LevelCommon_1536"
+    },
     "seedpacket": {
       "atlas_png": "/mnt/d/PvZ/ReverseEngineering/PvZ2-OBB-Rip/pvz2_original_unpacked/ATLASES/UI_SEEDPACKETS_1536_00.PNG",
       "rect": [

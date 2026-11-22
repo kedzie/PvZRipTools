@@ -520,6 +520,20 @@ namespace PvZRip.Editor
 
             switch (plantName)
             {
+                case "explodeonut":
+                    // Same layout as Primal Wall-nut: idle/idle2/idle3 are the metal-armoured Plant Food look,
+                    // the normal nut is damage (fresh) -> damage2 -> damage3 (cracked), switched by health.
+                    ForceLoop(root, "damage", "damage2", "damage3");
+                    ClearTransitions(controllerPath, "damage", "damage2", "damage3");
+                    SetDefaultState(controllerPath, "damage");
+                    break;
+
+                case "megagatling":
+                    // The giant pea's flight clip ("animation") is a looping ball; the bulk default would
+                    // play it once. (attack returns to idle through the bulk default transition.)
+                    ForceLoop($"Assets/plantrip/{plantName}/models/default/projectile", "animation");
+                    break;
+
                 case "primal_wallnut":
                     // "idle"/"idle2" in the PAM are the stone-armoured Plant Food look; the normal
                     // nut is "damage" (fresh) -> "damage2" -> "damage3" (cracked). Make "damage"
@@ -839,6 +853,32 @@ namespace PvZRip.Editor
             // Three sun pulses in the one "attack" clip (use_action at +20/+29/+38).
             { "goldbloom", l => l == "attack" },
             { "primal_sunflower", l => l == "special" },
+            // Instant plants: the one use_action is the moment the blast / chill / stall lands.
+            { "chillypepper", l => l == "attack" },
+            // Three attack variants (attack, attack2, attack3), each with its own use_action at +12.
+            { "bombegranate", l => l.StartsWith("attack") },
+            // Stallia marks its moment with a "freeze" command instead (see ExtraLaunchCommands).
+            { "stallia", l => l == "attack" },
+            // One use_action (+16, the barrels spinning up) in a 31-frame clip; ExtraLaunchOffsets turns it
+            // into a short stream. attack_stage2 is the Plant Food look and stays unused.
+            { "megagatling", l => l == "attack" },
+        };
+
+        // Plants whose PAM names the launch moment with a command other than use_action*/use_special.
+        // plant -> extra command name (Stallia: "freeze", the frame the stall takes hold).
+        static readonly Dictionary<string, string> ExtraLaunchCommands = new Dictionary<string, string>
+        {
+            { "stallia", "freeze" },
+        };
+
+        // Plants that fire several times per clip although the PAM only marks one frame: each offset is
+        // added to the clip's EARLIEST marker and gets its own ExecuteAttack event (the marker itself
+        // is offset 0). Mega Gatling: the PAM's single use_action is at +16 of its 31-frame attack clip,
+        // where the barrels spin; 5 shots 3 frames (0.1 s at 30 fps) apart -> frames 16, 19, 22, 25, 28.
+        // MegaGatlingBehaviorController.ShotsPerVolley must match the count here.
+        static readonly Dictionary<string, int[]> ExtraLaunchOffsets = new Dictionary<string, int[]>
+        {
+            { "megagatling", new[] { 0, 3, 6, 9, 12 } },
         };
 
         // Plants whose clip also gets an "OwnerDie" Animation Event on its second-to-last keyframe
@@ -847,7 +887,16 @@ namespace PvZRip.Editor
         static readonly Dictionary<string, string> OwnerDieClips = new Dictionary<string, string>
         {
             { "goldbloom", "attack" },
+            { "chillypepper", "attack" },
+            // A trailing * matches every clip whose label starts with the text before it.
+            { "bombegranate", "attack*" },
+            { "stallia", "attack" },
         };
+
+        static bool MatchesClipLabel(string pattern, string label)
+        {
+            return pattern.EndsWith("*") ? label.StartsWith(pattern.TrimEnd('*')) : pattern == label;
+        }
 
         // PvZ2's data runs at 30 fps (e.g. Peanut's two attack clips are 19 + 21 frames = 1.33 s =
         // exactly its 1.30-1.33 s shot cooldown); the older plants here were imported at 12 fps,
@@ -860,6 +909,11 @@ namespace PvZRip.Editor
             { "peapod", 30f },
             { "primal_sunflower", 30f },
             { "goldbloom", 30f },
+            { "chillypepper", 30f },
+            { "bombegranate", 30f },
+            { "explodeonut", 30f },
+            { "stallia", 30f },
+            { "megagatling", 30f },
         };
 
         [Serializable] class SndManifest { public SndAnimation[] animations; }
@@ -1013,15 +1067,24 @@ namespace PvZRip.Editor
                 if (LaunchEventPlants.TryGetValue(plantName, out var launchClip) && launchClip(anim.label))
                 {
                     launchFrames = new List<int>();
+                    // use_action, or use_action1..N (Peapod: one marker per head - its single-head "attack"
+                    // clip only has use_action1), or use_special (sun plants), or the plant's own extra command.
                     foreach (var a in anim.actions ?? new SndAction[0])
-                        // use_action, or use_action1..N (Peapod: one marker per head - its single-head "attack"
-                        // clip only has use_action1), or use_special (sun plants).
-                        if (a.command.StartsWith("use_action") || a.command == "use_special") launchFrames.Add(a.frame);
+                    {
+                        ExtraLaunchCommands.TryGetValue(plantName, out var extraCommand);
+                        if (a.command.StartsWith("use_action") || a.command == "use_special"
+                            || (extraCommand != null && a.command == extraCommand)) launchFrames.Add(a.frame);
+                    }
+                    if (launchFrames.Count > 0 && ExtraLaunchOffsets.TryGetValue(plantName, out var offsets))
+                    {
+                        int first = launchFrames.Min();
+                        launchFrames = offsets.Select(o => first + o).Distinct().ToList();
+                    }
                     if (launchFrames.Count == 0)
                         Debug.LogWarning($"[BakeSound] {plantName}/{anim.label}: opted in to ExecuteAttack but the PAM has no use_action/use_special marker.");
                 }
 
-                bool ownerDie = OwnerDieClips.TryGetValue(plantName, out var dieLabel) && dieLabel == anim.label;
+                bool ownerDie = OwnerDieClips.TryGetValue(plantName, out var dieLabel) && MatchesClipLabel(dieLabel, anim.label);
 
                 var summary = ReplaceSoundEvents(plantName, clipPath, wanted, launchFrames, ownerDie);
                 if (summary == null)

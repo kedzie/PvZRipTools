@@ -91,3 +91,34 @@ any type) and `z.TakeDamage(dmg, flags)`. B keeps PvZ2's own numbers (Dusk Lobbe
 * PAM markers: sun plants put `use_action` on the frame the sun spawns (Primal Sunflower `special` +19),
   Gold Bloom `attack` has three (+20/+29/+38, one burst pulse each). Peapod uses `use_action1..5` (one per
   stacked head; the single-head `attack` has `use_action1`). Peanut: `attack` and `attack2` each have one.
+
+## Instant explosion / chill / stall plants, a nut that explodes, Mega Gatling (2026-11-21; READ FROM CODE, NOT TESTED IN GAME)
+
+PvZ2 data (`PLANTPROPERTIES.json`, all "Actions" are `explode`/`projectile`):
+
+| Plant | Cost | HP | PacketCooldown | What the data says |
+|---|---|---|---|---|
+| Chilly Pepper | 125 | 300 | 35 | 3 explode Actions: `radius_tiered_row` radius 5.0736 (2.25 tiles) Damage 200 / Splash 100; `row` Freeze 1; `row_adjacent` Chill 1 + Freeze 1 |
+| Bombegranate | 150 | 300 | 35 | `radius` 2.0736 (1.44 tiles, "3by3") Damage 1800, Burns; GridItemDamage 200; attack/attack2/attack3 picked per planting. The `seed_*` clips (+ "spawn" archetype) are the Plant Food mini bombs - unused here |
+| Explode-o-nut | 50 | 3000 | 10 | Powers: Shield3000 + DamageRadius ExplodeONutDamageLvl1 (numbers not in the JSON). `idle*` = armoured Plant Food look, `damage*` = the normal nut (same as Primal Wall-nut) |
+| Stallia | 0 | 300 | 20 | `explode` enemy, StallDuration 12 (Plantfood 18), **Knockback 0**, DieAfterExplode; PAM marks the moment with a `freeze` command, not use_action |
+| Mega Gatling | 400 | 300 | 5 | two `PeaDefault` Actions, 1.35-1.5 s each; **GiantPeaDefault (600 dmg) is a SecondaryAction = the Plant Food shot**; `ProjectileLaunchSound` is "" so firing is silent; PAM: one use_action on `attack` +16 |
+
+The explosion/chill/stall VFX of Chilly Pepper, Bombegranate and Stallia are part of their own `attack` clips (frost burst,
+crater + smoke, purple cloud), so no native particle is needed for them. Explode-o-nut's PAM has no explosion at all.
+
+Replanted hooks used (all public, signatures from the decompile):
+* `Board.KillAllZombiesInRadius(row, x, y, radius, rowRange, burn, DamageRangeFlags)` - Cherry Bomb's blast (115 px, rowRange 1,
+  burn = ashes). Bombegranate and Explode-o-nut call it directly.
+* `Zombie.ApplyChill(false)` = mChilledCounter max(current, 1000) ticks (10 s, `true` = 20 s, the ice-trap value); read from the ISIL.
+  Damage with `DamageFlags.Freeze` calls it too. `Zombie.HitIceTrap()` is the full freeze (random ~4-6 s counter + 20 s chill).
+* Stall = `Zombie.ApplyButter()` (public; sets mButteredCounter 400 ticks, skips Zomboni/Boss/unfreezable states) then raise
+  `mButteredCounter` to 1200. `Zombie.IsImmobilizied()` = iceTrap>0 || butter>0, so the zombie neither walks nor chews; `UpdateAnimSpeed` freezes
+  its animation. Setting only `mIceTrapCounter` would also stop it but skip the ice visuals/ClearIceTrap bookkeeping.
+* Native explosion effects: `Board.mApp.AddTodParticle(x, y, Board.MakeRenderOrder(RenderLayer.Top, row, 0), ParticleEffect.Powie)`,
+  `Board.ShakeBoard(3, -4)`, `AppCore.GetService<IAudioService>().PlayFoley(FoleyType.Cherrybomb)`.
+* "A plant was destroyed" has no CoreLib hook, and none is needed: a Harmony prefix on `Plant.Die` (act only when `mPlantHealth <= 0`, so
+  the shovel and end-of-level removals stay quiet) plus one on `Plant.Squish` (Zomboni/Gargantuar flatten without health loss), both in
+  the mod (MelonLoader applies `[HarmonyPatch]` classes of any mod assembly), find the controller with `CustomPlantBehaviorController.GetFor`.
+* A custom projectile with `ProjectileMotion.Straight` moves at the native pea speed whatever `mVelX` says (UpdateNormalMotion's default
+  branch adds a constant per tick); the projectile art is anchored at its BOTTOM (pivot 0.5, 0), so lift `mPosY` by half the sprite height.

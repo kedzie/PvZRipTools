@@ -214,7 +214,22 @@ once per marker - Peapod's `attack 2..5` have 2-5 markers 2-5 frames apart and i
 Each clip's random variant is picked per clip in rotation.
 
 `OwnerDieClips` (same file) adds an `OwnerDie` event on a clip's second-to-last keyframe
-(`AnimationScripts.OwnerDie` -> `Plant.Die`) - used by the instant plant Gold Bloom to remove itself.
+(`AnimationScripts.OwnerDie` -> `Plant.Die`) - used by the instant plants (Gold Bloom, Chilly Pepper, Bombegranate,
+Stallia) to remove themselves. The clip label may end in `*` (Bombegranate: `attack*` = attack, attack2, attack3).
+
+Three more opt-in tables next to `LaunchEventPlants` (all in `PvZBundleBuilder.cs`), added for the 2026-11-21 instant/Mega
+Gatling round:
+* `ExtraLaunchCommands` - plant -> a PAM command name that also counts as a launch marker (Stallia's moment is a
+  `freeze` command, not `use_action`).
+* `ExtraLaunchOffsets` - plant -> frame offsets from the clip's EARLIEST marker, one `ExecuteAttack` each (the marker
+  itself = offset 0). For a plant whose PAM marks ONE launch frame but fires a stream: Mega Gatling `{0,3,6,9,12}` =
+  frames 16/19/22/25/28 of its 31-frame attack clip. The controller must know how many events there are.
+* `ApplyPlantAnimatorFixes` cases `explodeonut` (damage tiers, like Primal Wall-nut) and `megagatling` (projectile loop).
+
+A `plants.json` `projectile` block may carry its own `atlas_png` + `group_id` when the projectile art is not in the plant's
+atlas (Mega Gatling's giant pea lives in `LEVELCOMMON_1536_00.PNG` / `LevelCommon_1536`); `rip_plant.py` passes them to the
+compositor. `plant_sounds.py` also rips a projectile's **impact sound** pick when it lives in a shared bank (it used to
+only look at animation-event layers, so a hit sound from `AUDIO_ALWAYS_LOADED` never reached `sounds/`).
 
 ### Clip frame rate
 
