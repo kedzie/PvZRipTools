@@ -21,6 +21,64 @@ namespace PvZRip.Editor
             EditorApplication.Exit(0);
         }
 
+        // Re-packs finished bundles from LZMA (the BuildAssetBundles default, which has to be
+        // decompressed whole at load time) to chunk-based LZ4 (loads fast, and straight from a file
+        // path). Content is untouched: every file in lz4_in is converted as-is into lz4_out, no
+        // re-import, no re-build. Used when a mod loads dozens of bundles at game startup.
+        public static void RecompressBundlesToLZ4()
+        {
+            const string inDir = "D:/PvZ2RipTest/lz4_in";
+            const string outDir = "D:/PvZ2RipTest/lz4_out";
+            Directory.CreateDirectory(outDir);
+
+            var files = Directory.GetFiles(inDir).Where(f => !f.EndsWith(".manifest")).OrderBy(f => f).ToList();
+            var pending = new Queue<string>(files);
+            AssetBundleRecompressOperation current = null;
+            string currentName = null;
+            int failed = 0;
+
+            EditorApplication.update += () =>
+            {
+                if (current != null)
+                {
+                    if (!current.isDone) return;
+                    if (!current.success)
+                    {
+                        failed++;
+                        Debug.LogError($"[PvZBundleBuilder] LZ4 recompress failed for {currentName}: {current.humanReadableResult}");
+                    }
+                    else
+                    {
+                        Debug.Log($"[PvZBundleBuilder] LZ4: {currentName} done");
+                    }
+                    current = null;
+                }
+
+                if (pending.Count == 0)
+                {
+                    int written = Directory.GetFiles(outDir).Length;
+                    if (written != files.Count) failed++;
+                    Debug.Log($"[PvZBundleBuilder] Recompressed {files.Count - failed}/{files.Count} bundle(s), {written} file(s) in {outDir}");
+                    EditorApplication.Exit(failed == 0 ? 0 : 1);
+                    return;
+                }
+
+                var next = pending.Dequeue();
+                currentName = Path.GetFileName(next);
+                try
+                {
+                    // LZ4Runtime (not the editor-only BuildCompression.LZ4 preset) is what recompression accepts.
+                    current = AssetBundle.RecompressAssetBundleAsync(next, Path.Combine(outDir, currentName), BuildCompression.LZ4Runtime, 0);
+                }
+                catch (Exception e)
+                {
+                    failed++;
+                    current = null;
+                    Debug.LogError($"[PvZBundleBuilder] LZ4 recompress could not start for {currentName}: {e.Message}");
+                }
+            };
+        }
+
         // Batch entry point: imports every plant exported under D:/PvZ2RipTest/export_all
         // (one subfolder per plant, each with frames/ + sounds/), tags each resulting
         // prefab + its sounds with a per-plant AssetBundle name, then builds all of
@@ -121,7 +179,7 @@ namespace PvZRip.Editor
 
             var manifest = BuildPipeline.BuildAssetBundles(
                 outputDir,
-                BuildAssetBundleOptions.ForceRebuildAssetBundle,
+                BuildAssetBundleOptions.ForceRebuildAssetBundle | BuildAssetBundleOptions.ChunkBasedCompression,
                 BuildTarget.StandaloneWindows64);
 
             if (manifest == null)
@@ -153,7 +211,7 @@ namespace PvZRip.Editor
 
             var manifest = BuildPipeline.BuildAssetBundles(
                 outputDir,
-                BuildAssetBundleOptions.ForceRebuildAssetBundle,
+                BuildAssetBundleOptions.ForceRebuildAssetBundle | BuildAssetBundleOptions.ChunkBasedCompression,
                 BuildTarget.StandaloneWindows64);
 
             if (manifest == null)
@@ -195,7 +253,7 @@ namespace PvZRip.Editor
 
             var manifest = BuildPipeline.BuildAssetBundles(
                 outputDir,
-                BuildAssetBundleOptions.ForceRebuildAssetBundle,
+                BuildAssetBundleOptions.ForceRebuildAssetBundle | BuildAssetBundleOptions.ChunkBasedCompression,
                 BuildTarget.StandaloneWindows64);
 
             if (manifest == null)
@@ -332,7 +390,7 @@ namespace PvZRip.Editor
 
             var manifest = BuildPipeline.BuildAssetBundles(
                 outputDir,
-                BuildAssetBundleOptions.ForceRebuildAssetBundle,
+                BuildAssetBundleOptions.ForceRebuildAssetBundle | BuildAssetBundleOptions.ChunkBasedCompression,
                 BuildTarget.StandaloneWindows64);
 
             if (manifest == null)
@@ -369,7 +427,7 @@ namespace PvZRip.Editor
 
             var manifest = BuildPipeline.BuildAssetBundles(
                 outputDir,
-                BuildAssetBundleOptions.ForceRebuildAssetBundle,
+                BuildAssetBundleOptions.ForceRebuildAssetBundle | BuildAssetBundleOptions.ChunkBasedCompression,
                 BuildTarget.StandaloneWindows64);
 
             if (manifest == null)
@@ -686,7 +744,7 @@ namespace PvZRip.Editor
 
             var manifest = BuildPipeline.BuildAssetBundles(
                 outputDir,
-                BuildAssetBundleOptions.ForceRebuildAssetBundle,
+                BuildAssetBundleOptions.ForceRebuildAssetBundle | BuildAssetBundleOptions.ChunkBasedCompression,
                 BuildTarget.StandaloneWindows64);
 
             if (manifest == null)
@@ -727,7 +785,7 @@ namespace PvZRip.Editor
 
             var manifest = BuildPipeline.BuildAssetBundles(
                 outputDir,
-                BuildAssetBundleOptions.ForceRebuildAssetBundle,
+                BuildAssetBundleOptions.ForceRebuildAssetBundle | BuildAssetBundleOptions.ChunkBasedCompression,
                 BuildTarget.StandaloneWindows64);
 
             if (manifest == null)
@@ -1126,7 +1184,7 @@ namespace PvZRip.Editor
             AssetDatabase.SaveAssets();
             AssetDatabase.Refresh();
             Directory.CreateDirectory(outputDir);
-            var built = BuildPipeline.BuildAssetBundles(outputDir, BuildAssetBundleOptions.ForceRebuildAssetBundle,
+            var built = BuildPipeline.BuildAssetBundles(outputDir, BuildAssetBundleOptions.ForceRebuildAssetBundle | BuildAssetBundleOptions.ChunkBasedCompression,
                 BuildTarget.StandaloneWindows64);
             if (built == null)
             {
@@ -1214,7 +1272,7 @@ namespace PvZRip.Editor
 
             var manifest = BuildPipeline.BuildAssetBundles(
                 outputDir,
-                BuildAssetBundleOptions.ForceRebuildAssetBundle,
+                BuildAssetBundleOptions.ForceRebuildAssetBundle | BuildAssetBundleOptions.ChunkBasedCompression,
                 BuildTarget.StandaloneWindows64);
 
             if (manifest == null)

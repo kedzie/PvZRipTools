@@ -79,6 +79,12 @@ PopStudio needs building from source (`PopStudio.ConsoleProject`, .NET
    prefab per plant, tags each with its own asset bundle name, and builds
    every configured bundle in one pass.
 
+   Bundles are built with `ChunkBasedCompression` (LZ4): the game loads them far faster at
+   startup than Unity's default LZMA, which has to be decompressed whole (~26 s for 19 bundles,
+   near zero with LZ4). To convert bundles that were built before this, put them in
+   `D:/PvZ2RipTest/lz4_in` and run `-executeMethod PvZRip.Editor.PvZBundleBuilder.RecompressBundlesToLZ4`
+   (output goes to `lz4_out`; content is unchanged, no re-import).
+
    **Important**: `ImportPlantFull` regenerates a plant's prefab and
    `AnimatorController` from scratch off the bulk-export defaults - if
    you've since hand-tuned a plant in the Editor (fixed transitions,
