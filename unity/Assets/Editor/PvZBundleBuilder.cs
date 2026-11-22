@@ -86,7 +86,12 @@ namespace PvZRip.Editor
                         throw new DirectoryNotFoundException(framesDir);
                     }
                     PvZRipImporter.ImportPlantFull(plantName, framesDir, soundsDir,
-                        projectileFramesDir, projectileHitFramesDir, seedPacketPng, sampleRate);
+                        projectileFramesDir, projectileHitFramesDir, seedPacketPng,
+                        SampleRateOverrides.TryGetValue(plantName, out var plantSampleRate) ? plantSampleRate : sampleRate);
+
+                    // Per-plant Animator corrections (default state, loops, clip chains) - the
+                    // bulk defaults are wrong for plants whose clips aren't literally named idle/attack.
+                    ApplyPlantAnimatorFixes(plantName);
 
                     string bundleName = $"pvz{plantName}bundle";
                     TagPlantBundle(bundleName, plantName,
@@ -505,6 +510,119 @@ namespace PvZRip.Editor
             }
         }
 
+        // Animator corrections for the PvZ2 ports that go through ImportAndBuildAllRipped (see
+        // ApplyPlantAnimatorFixes callers). Runs right after ImportPlantFull, which regenerates the
+        // controller from the bulk defaults every time, so it is safe to re-run.
+        static void ApplyPlantAnimatorFixes(string plantName)
+        {
+            string root = $"Assets/plantrip/{plantName}/models/default/plant";
+            string controllerPath = $"{root}/ac.controller";
+
+            switch (plantName)
+            {
+                case "primal_wallnut":
+                    // "idle"/"idle2" in the PAM are the stone-armoured Plant Food look; the normal
+                    // nut is "damage" (fresh) -> "damage2" -> "damage3" (cracked). Make "damage"
+                    // the default and loop all three; the behaviour controller switches between
+                    // them as health drops, so none may fall back to a default on its own.
+                    ForceLoop(root, "damage", "damage2", "damage3");
+                    ClearTransitions(controllerPath, "damage", "damage2", "damage3");
+                    SetDefaultState(controllerPath, "damage");
+                    break;
+
+                case "peapod":
+                    // Stackable (1-5 heads): idle/idle2..idle5 and attack/"attack 2".."attack 5" (the state
+                    // names contain a space). Each attack returns to the idle of its own head count
+                    // instead of the bulk default (1-head idle); "attack" -> "idle" already is the default.
+                    for (int heads = 2; heads <= 5; heads++)
+                    {
+                        RewireExit(controllerPath, $"attack {heads}", $"idle{heads}");
+                    }
+                    break;
+
+                case "peanut":
+                    // Two shots per cycle at full health and in the first damage tier ("attack" then
+                    // "attack2"); the heavier tiers only have one attack clip. Each chain ends in
+                    // that tier's own idle instead of the bulk default (tier-0 idle).
+                    RewireExit(controllerPath, "attack", "attack2");
+                    RewireExit(controllerPath, "attack2", "idle");
+                    RewireExit(controllerPath, "attack_damage1", "attack2_damage1");
+                    RewireExit(controllerPath, "attack2_damage1", "idle_damage1");
+                    RewireExit(controllerPath, "attack_damage2", "idle_damage2");
+                    RewireExit(controllerPath, "attack_damage3", "idle_damage3");
+                    break;
+            }
+        }
+
+        static void ForceLoop(string clipRoot, params string[] labels)
+        {
+            foreach (var label in labels)
+            {
+                var clip = AssetDatabase.LoadAssetAtPath<AnimationClip>($"{clipRoot}/{label}/{label}.anim");
+                if (clip == null)
+                {
+                    Debug.LogError($"[PvZBundleBuilder] Could not find clip '{label}' under {clipRoot} to force looping.");
+                    continue;
+                }
+                var settings = AnimationUtility.GetAnimationClipSettings(clip);
+                settings.loopTime = true;
+                AnimationUtility.SetAnimationClipSettings(clip, settings);
+                EditorUtility.SetDirty(clip);
+            }
+            AssetDatabase.SaveAssets();
+        }
+
+        static AnimatorState FindState(AnimatorController controller, string name)
+        {
+            foreach (var childState in controller.layers[0].stateMachine.states)
+            {
+                if (childState.state.name == name) return childState.state;
+            }
+            Debug.LogError($"[PvZBundleBuilder] AnimatorController '{controller.name}' is missing expected state '{name}'.");
+            return null;
+        }
+
+        static void ClearTransitions(string controllerPath, params string[] stateNames)
+        {
+            var controller = AssetDatabase.LoadAssetAtPath<AnimatorController>(controllerPath);
+            if (controller == null)
+            {
+                Debug.LogError($"[PvZBundleBuilder] Could not load AnimatorController at {controllerPath}");
+                return;
+            }
+            foreach (var name in stateNames)
+            {
+                var state = FindState(controller, name);
+                if (state == null) continue;
+                foreach (var t in state.transitions) state.RemoveTransition(t);
+            }
+            EditorUtility.SetDirty(controller);
+            AssetDatabase.SaveAssets();
+        }
+
+        // Replaces a one-shot state's exit transition with a single exit-time transition to `to`.
+        static void RewireExit(string controllerPath, string from, string to)
+        {
+            var controller = AssetDatabase.LoadAssetAtPath<AnimatorController>(controllerPath);
+            if (controller == null)
+            {
+                Debug.LogError($"[PvZBundleBuilder] Could not load AnimatorController at {controllerPath}");
+                return;
+            }
+            var fromState = FindState(controller, from);
+            var toState = FindState(controller, to);
+            if (fromState == null || toState == null) return;
+
+            foreach (var t in fromState.transitions) fromState.RemoveTransition(t);
+            var transition = fromState.AddTransition(toState);
+            transition.hasExitTime = true;
+            transition.exitTime = 1f;
+            transition.duration = 0f;
+            transition.hasFixedDuration = true;
+            EditorUtility.SetDirty(controller);
+            AssetDatabase.SaveAssets();
+        }
+
         static void SetDefaultState(string controllerPath, string stateName)
         {
             var controller = AssetDatabase.LoadAssetAtPath<AnimatorController>(controllerPath);
@@ -704,11 +822,46 @@ namespace PvZRip.Editor
         [Serializable] class SndAction { public int frame; public string command; }
         [Serializable] class SndAnimation { public string label; public int frames; public SndEvent[] events; public SndAction[] actions; }
 
-        // Plants whose "attack" clip also gets an "ExecuteAttack" Animation Event on the PAM's
-        // use_action frame (the throw/launch frame). CustomPlantBehaviorController.OnAnimationAttackEvent
-        // spawns the projectile from it, so launches follow the game speed instead of a code timer.
+        // Plants whose action clips also get an "ExecuteAttack" Animation Event on every PAM
+        // use_action / use_special frame of the clips the predicate accepts (the throw / launch /
+        // sun-spawn frame). CustomPlantBehaviorController.OnAnimationAttackEvent does the plant's
+        // action from it, so it follows the game speed instead of a code timer.
         // Opt-in on purpose: shipped plants keep their clips untouched.
-        static readonly HashSet<string> LaunchEventPlants = new HashSet<string> { "dusklobber" };
+        static readonly Dictionary<string, Func<string, bool>> LaunchEventPlants = new Dictionary<string, Func<string, bool>>
+        {
+            { "dusklobber", l => l == "attack" },
+            // Two shots per cycle: "attack" then "attack2", each with its own use_action; the
+            // damage tiers have their own attack clips ("attack_damage1", ...).
+            { "peanut", l => l.StartsWith("attack") },
+            // One clip pair per head count: "attack", "attack 2".."attack 5" (note the space), each with
+            // one use_actionN marker per head -> one ExecuteAttack per head.
+            { "peapod", l => l.StartsWith("attack") },
+            // Three sun pulses in the one "attack" clip (use_action at +20/+29/+38).
+            { "goldbloom", l => l == "attack" },
+            { "primal_sunflower", l => l == "special" },
+        };
+
+        // Plants whose clip also gets an "OwnerDie" Animation Event on its second-to-last keyframe
+        // (AnimationScripts.OwnerDie -> Plant.Die): an instant plant that removes itself when its
+        // animation has played out. plant -> clip label.
+        static readonly Dictionary<string, string> OwnerDieClips = new Dictionary<string, string>
+        {
+            { "goldbloom", "attack" },
+        };
+
+        // PvZ2's data runs at 30 fps (e.g. Peanut's two attack clips are 19 + 21 frames = 1.33 s =
+        // exactly its 1.30-1.33 s shot cooldown); the older plants here were imported at 12 fps,
+        // which stretches those clips 2.5x (Dusk Lobber's 45-frame attack = 3.75 s against a 3 s
+        // launch rate). Plants listed here keep PvZ2's own timing instead.
+        static readonly Dictionary<string, float> SampleRateOverrides = new Dictionary<string, float>
+        {
+            { "primal_wallnut", 30f },
+            { "peanut", 30f },
+            { "peapod", 30f },
+            { "primal_sunflower", 30f },
+            { "goldbloom", 30f },
+        };
+
         [Serializable] class SndManifest { public SndAnimation[] animations; }
 
         const string ExportRoot = "D:/PvZ2RipTest/export_all";
@@ -764,8 +917,10 @@ namespace PvZRip.Editor
         // Replaces a clip's PlaySound/PlaySoundEvent events with one PlaySound per (event, layer).
         // `events` is (frame offset, sound pick) pairs. Returns a one-line summary.
         // `launchFrame` >= 0 also (re)places the clip's single ExecuteAttack event at that frame offset.
-        static string ReplaceSoundEvents(string plantName, string clipPath, List<(int frame, int pick)> events, int launchFrame = -1)
+        static string ReplaceSoundEvents(string plantName, string clipPath, List<(int frame, int pick)> events,
+            List<int> launchFrames = null, bool ownerDieAtEnd = false)
         {
+            bool replaceLaunch = launchFrames != null;
             var clip = AssetDatabase.LoadAssetAtPath<AnimationClip>(clipPath);
             if (clip == null) return null;
 
@@ -778,9 +933,13 @@ namespace PvZRip.Editor
                 {
                     removed.Add($"{(ev.objectReferenceParameter != null ? ev.objectReferenceParameter.name : ev.stringParameter)}@{ev.time:0.###}");
                 }
-                else if (launchFrame >= 0 && ev.functionName == "ExecuteAttack")
+                else if (replaceLaunch && ev.functionName == "ExecuteAttack")
                 {
                     removed.Add($"ExecuteAttack@{ev.time:0.###}");
+                }
+                else if (ownerDieAtEnd && ev.functionName == "OwnerDie")
+                {
+                    removed.Add($"OwnerDie@{ev.time:0.###}");
                 }
                 else
                 {
@@ -802,11 +961,22 @@ namespace PvZRip.Editor
                 added.Add($"{pick}@{t:0.###}");
             }
 
-            if (launchFrame >= 0 && times.Length > 0)
+            if (replaceLaunch && times.Length > 0)
             {
-                float t = times[Math.Min(launchFrame, times.Length - 1)];
-                kept.Add(new AnimationEvent { time = t, functionName = "ExecuteAttack" });
-                added.Add($"ExecuteAttack@{t:0.###}");
+                foreach (int launchFrame in launchFrames)
+                {
+                    float t = times[Math.Min(launchFrame, times.Length - 1)];
+                    kept.Add(new AnimationEvent { time = t, functionName = "ExecuteAttack" });
+                    added.Add($"ExecuteAttack@{t:0.###}");
+                }
+            }
+
+            if (ownerDieAtEnd && times.Length > 1)
+            {
+                // Second-to-last keyframe: an event exactly at the clip's end can be skipped.
+                float t = times[times.Length - 2];
+                kept.Add(new AnimationEvent { time = t, functionName = "OwnerDie" });
+                added.Add($"OwnerDie@{t:0.###}");
             }
 
             AnimationUtility.SetAnimationEvents(clip, kept.ToArray());
@@ -839,12 +1009,21 @@ namespace PvZRip.Editor
                     foreach (var l in e.layers ?? new SndLayer[0])
                         wanted.Add((e.frame, l.pick));
 
-                int launchFrame = -1;
-                if (LaunchEventPlants.Contains(plantName) && anim.label == "attack")
+                List<int> launchFrames = null;
+                if (LaunchEventPlants.TryGetValue(plantName, out var launchClip) && launchClip(anim.label))
+                {
+                    launchFrames = new List<int>();
                     foreach (var a in anim.actions ?? new SndAction[0])
-                        if (a.command == "use_action") { launchFrame = a.frame; break; }
+                        // use_action, or use_action1..N (Peapod: one marker per head - its single-head "attack"
+                        // clip only has use_action1), or use_special (sun plants).
+                        if (a.command.StartsWith("use_action") || a.command == "use_special") launchFrames.Add(a.frame);
+                    if (launchFrames.Count == 0)
+                        Debug.LogWarning($"[BakeSound] {plantName}/{anim.label}: opted in to ExecuteAttack but the PAM has no use_action/use_special marker.");
+                }
 
-                var summary = ReplaceSoundEvents(plantName, clipPath, wanted, launchFrame);
+                bool ownerDie = OwnerDieClips.TryGetValue(plantName, out var dieLabel) && dieLabel == anim.label;
+
+                var summary = ReplaceSoundEvents(plantName, clipPath, wanted, launchFrames, ownerDie);
                 if (summary == null)
                 {
                     if (wanted.Count > 0)

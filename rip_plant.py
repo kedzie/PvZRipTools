@@ -144,7 +144,13 @@ def rip_plant(entry: dict) -> dict:
                                          skip_image_suffix=entry.get("skip_image_suffix", ""))
 
     wem_dir = plant_work / "wem"
-    wem_ids = extract_bnk(Path(entry["bnk"]), wem_dir)
+    try:
+        wem_ids = extract_bnk(Path(entry["bnk"]), wem_dir)
+    except ValueError as e:
+        # Some plant banks are an empty 32-byte header (e.g. PLANT_PRIMALSUNFLOWER.BNK): the plant's
+        # sounds live in shared banks, which plant_sounds.py below resolves and rips on its own.
+        print(f"    {entry['name']}: no embedded media in its own bank ({e})")
+        wem_ids = []
 
     sounds_dir = plant_work / "sounds"
     n_converted = convert_wems_to_ogg(wem_dir, sounds_dir)

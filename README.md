@@ -198,13 +198,39 @@ reported as "no such clip", not an error.
 
 ### Launch frame: an `ExecuteAttack` event (so the throw follows game speed too)
 
-The PAM's `use_action` command marks the frame a plant actually releases its projectile (Dusk Lobber:
-`attack` frame +11). The manifest keeps it as `animations[].actions[]`. Plants listed in
-`LaunchEventPlants` (`PvZBundleBuilder.cs`, opt-in - currently only `dusklobber`) get one
-`ExecuteAttack` Animation Event on that frame of their `attack` clip (re-bakes replace it, never stack).
-CoreLib forwards it: `AnimationScripts.ExecuteAttack()` -> `CustomPlantBehaviorController.OnAnimationAttackEvent()`
-(virtual, no-op by default) - override that to spawn the projectile instead of using a timer. Needs a CoreLib
-build that has the hook. **Not yet verified in game** (code and bake log only).
+The PAM's `use_action` command (also `use_action1..N`, and `use_special`) marks the frame a plant actually
+acts (releases its projectile / spawns its sun). The manifest keeps it as `animations[].actions[]`. Plants
+listed in `LaunchEventPlants` (`PvZBundleBuilder.cs`, opt-in; value = which clip labels) get one
+`ExecuteAttack` Animation Event on EVERY such frame of those clips (re-bakes replace them, never stack).
+Currently: `dusklobber` (attack), `peanut` (attack*), `peapod` (attack*: `attack` + `attack 2`..`attack 5`, one event per head - stackable, see `PeapodBehaviorController`), `goldbloom` (attack, three pulses),
+`primal_sunflower` (special). CoreLib forwards it: `AnimationScripts.ExecuteAttack()` ->
+`CustomPlantBehaviorController.OnAnimationAttackEvent()` (virtual, no-op by default) - override that to spawn
+the projectile / sun instead of using a timer. Needs a CoreLib build that has the hook. **Not yet verified in
+game** (code and bake log only).
+
+`launch_sound` (a plant's `plants.json` entry: `{"sample": "Play_Throw", "labels": [...]}`) adds the engine-played
+`ProjectileLaunchSound` as a frame-driven event on each listed clip's EARLIEST `use_action*` marker (once per clip, not
+once per marker - Peapod's `attack 2..5` have 2-5 markers 2-5 frames apart and identical stacked throws would be loud).
+Each clip's random variant is picked per clip in rotation.
+
+`OwnerDieClips` (same file) adds an `OwnerDie` event on a clip's second-to-last keyframe
+(`AnimationScripts.OwnerDie` -> `Plant.Die`) - used by the instant plant Gold Bloom to remove itself.
+
+### Clip frame rate
+
+`ImportAndBuildAllRipped` imports every clip at 12 fps (`sampleRate`), which is what the older plants use.
+PvZ2's own data is 30 fps (Peanut's two attack clips are 19 + 21 frames = 1.33 s = its 1.30-1.333 s shot
+cooldown), so at 12 fps those clips run 2.5x long (Dusk Lobber's 45-frame attack = 3.75 s against a 3 s launch
+rate). `SampleRateOverrides` (same file) lists plants imported at 30 fps instead; delete an entry to go back.
+Event times are taken from the clip's own keyframes, so they stay in sync either way.
+
+### Per-plant Animator fixes in the bulk import
+
+`ImportPlantFull` builds the controller from bulk defaults (default state `idle`, one-shot exit transition back
+to it). `ApplyPlantAnimatorFixes` runs right after it for plants that need more (Primal Wall-nut: the PAM's
+`idle` is the Plant Food stone armour, the real pose is `damage`/`damage2`/`damage3`; Peanut: `attack` ->
+`attack2` -> idle chains, per damage tier), so `build_only.txt` + `build_all_bundles.bat` reproduces them
+without a dedicated `Build<Plant>Bundle()` method.
 
 ### What the 2026-11-05 six-plant bake changed (so a regression is easy to spot)
 

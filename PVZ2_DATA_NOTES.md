@@ -72,3 +72,22 @@ any type) and `z.TakeDamage(dmg, flags)`. B keeps PvZ2's own numbers (Dusk Lobbe
 * Projectile art: `T_DUSKLOBBER_PROJECTILE` (3 flight anims, `animation`..`animation3`) and
   `T_DUSKLOBBER_PROJECTILE_HIT` (3 splat anims); both in `IMAGES/768/FULL/EFFECTS`.
 * Seed packet UI tile: always R/B-swap (green body, purple thorns).
+
+## Sun plants and instant plants (found while porting Primal Sunflower / Gold Bloom, 2026-11-21)
+
+* **PvZ2 sun amounts**: `Powers.List[].Props` = `SunProducer<N>` and N is the sun per production event
+  (POWERS.RTON; `SunProducer125` has a `MinSpread`). PvZ2 Sunflower = SunProducer50 on a 32-36 s cooldown,
+  Primal Sunflower = 75 on the same cooldown, Gold Bloom = 125 once (Cost 0, `IsInstant`, `IsConsumable`,
+  PacketCooldown 75). Replanted coins: `CoinType.Sun` 25, `SmallSun` 15, `LargeSun` 50.
+* **Replanted**: `Plant.Update` -> `UpdateAbilities` dispatches on `mSeedType` with a fixed list; a custom seed
+  type never reaches `UpdateProductionPlant`. A custom plant with `PlantSubClass.Shooter` does reach
+  `UpdateShooter`, which decrements `mLaunchCounter` every tick regardless of zombies, resets it to
+  `mLaunchRate - Rand(15)` at <= 0 and calls `FindTargetAndFire` (a no-op for the custom seed, `Plant.Fire` is
+  suppressed). CoreLib reports each reset as `OnLaunchCounterTriggered()`. So a custom sun plant is just
+  `Shooter` + `m_launchRate` + `Board.AddCoin(Plant.mX, Plant.mY, CoinType.Sun, CoinMotion.FromPlant)`; no
+  CoreLib change needed. Initial counter: native Sunflower/Twin/Marigold use `RandRange(300, rate/2)`, anything
+  else `RandRange(0, rate)` (set `Plant.mLaunchCounter` in `PostInitialize` to mimic the sunflower).
+* Native Sunflower's launch rate can be read at runtime from `ReloadedUtils.GetPlantDefinition(SeedType.Sunflower).m_launchRate`.
+* PAM markers: sun plants put `use_action` on the frame the sun spawns (Primal Sunflower `special` +19),
+  Gold Bloom `attack` has three (+20/+29/+38, one burst pulse each). Peapod uses `use_action1..5` (one per
+  stacked head; the single-head `attack` has `use_action1`). Peanut: `attack` and `attack2` each have one.

@@ -28,6 +28,7 @@ clip's own keyframe times regardless of the clip's sample rate.
 
 Usage: plant_sounds.py <PLANT_NAME> [<PLANT_NAME> ...]   (names as in plants.json)
 """
+import copy
 import json
 import struct
 import sys
@@ -212,7 +213,11 @@ def pam_json_for(pam_file: str) -> Path:
     return Path(pam_file[:-4] + ".pam.json")
 
 
-def pam_events(pam_json: Path, plant_bank: Path):
+def pam_events(pam_json: Path, plant_bank: Path, launch_sound: dict = None):
+    """`launch_sound` ({"sample": "Play_Throw", "labels": ["attack"]}, from the plant's plants.json entry)
+    covers plants whose PAM has no PlaySample on its attack: PvZ2 plays the action's
+    `ProjectileLaunchSound` (PLANTPROPERTIES) from the engine at launch, so it is not in the PAM. It
+    is added as a normal frame-driven event on the label's first use_action marker."""
     pam = json.loads(pam_json.read_text())
     frames = pam["main_sprite"]["frame"]
     labeled = [(i, f["label"]) for i, f in enumerate(frames) if f.get("label")]
@@ -237,6 +242,21 @@ def pam_events(pam_json: Path, plant_bank: Path):
     # Commands on nested sprites fire on THEIR timeline, not the main one - not mapped
     # onto the flat exported frames, so just count them so nobody is surprised.
     nested = sum(1 for s in pam.get("sprite", []) for f in s.get("frame", []) if f.get("command"))
+    if launch_sound:
+        res = resolve_sample(launch_sound["sample"], plant_bank)
+        for a in animations:
+            if a["label"] not in launch_sound.get("labels", []) or a["events"]:
+                continue
+            # The EARLIEST marker only (by frame, not by marker number): a clip with several
+            # use_actionN markers (Peapod's one-per-head attack clips) gets the sound once per volley -
+            # identical throws on 2-5 frames apart would just stack into one loud smear.
+            markers = [x for x in a["actions"] if x["command"].startswith("use_action")]
+            marker = min(markers, key=lambda x: x["frame"]) if markers else None
+            if marker and res:
+                a["events"].append({"frame": marker["frame"], "sample": launch_sound["sample"],
+                                     "layers": copy.deepcopy(res)})  # own copy: assign_picks edits it per clip
+            else:
+                unresolved.append({"label": a["label"], "frame": 0, "sample": launch_sound["sample"]})
     assign_picks(animations)
     return {"frame_rate": pam.get("frame_rate", 30), "animations": animations,
             "unresolved": unresolved, "nested_sprite_commands": nested}
@@ -267,7 +287,7 @@ def write_manifests(entry: dict, export_dir: Path = None):
         if not pj.exists():
             written.append((sub or "plant", None, f"missing {pj.name}"))
             continue
-        manifest = pam_events(pj, plant_bank)
+        manifest = pam_events(pj, plant_bank, entry.get("launch_sound") if not sub else None)
         if sub == "projectile_hit" or (sub == "projectile" and not proj.get("impact_pam")):
             ev = projectile_impact_event(proj.get("alias", "")) if proj.get("alias") else None
             if ev:
