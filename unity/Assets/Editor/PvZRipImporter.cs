@@ -47,11 +47,14 @@ namespace PvZRip.Editor
         // optional seed packet sprite, matching the real shipped folder layout
         // (Assets/plant/<name>/models/default/{plant,projectile,projectile_hit}/...).
         public static void ImportPlantFull(string plantName, string plantFramesDir, string soundsDir,
-            string projectileFramesDir, string projectileHitFramesDir, string seedPacketPng, float sampleRate)
+            string projectileFramesDir, string projectileHitFramesDir, string seedPacketPng, float sampleRate,
+            ICollection<string> excludePlantLabels = null)
         {
             string root = $"Assets/plantrip/{plantName}/models/default";
+            // excludePlantLabels: clip labels of the PLANT object that are left out of the import (no sprites,
+            // clip or state), for art the mod can never reach (see PvZBundleBuilder.ExcludedPlantLabels).
             BuildAnimatedObject($"{root}/plant", plantName, plantFramesDir, sampleRate,
-                out int frameCount, out int stateCount);
+                out int frameCount, out int stateCount, excludePlantLabels);
 
             int soundCount = ImportSounds(plantName, soundsDir);
 
@@ -133,7 +136,7 @@ namespace PvZRip.Editor
         // up as "referenced script ... is missing" in the player log) and was breaking
         // the whole GameObject's rendering.
         static void BuildAnimatedObject(string objectRoot, string objectName, string framesDir, float sampleRate,
-            out int frameCount, out int stateCount)
+            out int frameCount, out int stateCount, ICollection<string> excludeLabels = null)
         {
             Directory.CreateDirectory(objectRoot);
             AssetDatabase.Refresh();
@@ -149,6 +152,7 @@ namespace PvZRip.Editor
                 var parts = line.Split('\t');
                 if (parts.Length < 4) continue;
                 string label = parts[0], filename = parts[1];
+                if (excludeLabels != null && excludeLabels.Contains(label)) continue;
                 float px = float.Parse(parts[2], CultureInfo.InvariantCulture);
                 float py = float.Parse(parts[3], CultureInfo.InvariantCulture);
                 frameInfo[$"{label}/{filename}"] = (px, py);

@@ -90,9 +90,22 @@ namespace PvZRip.Editor
         public static void ImportAndBuildAllRipped()
         {
             const string exportRoot = "D:/PvZ2RipTest/export_all";
-            const string outputDir = "D:/PvZ2RipTest/bundles";
+            string outputDir = "D:/PvZ2RipTest/bundles";
             const string filterFile = "D:/PvZ2RipTest/build_only.txt";
+            const string outputDirFile = "D:/PvZ2RipTest/build_outdir.txt";
             const float sampleRate = 12f;
+
+            // Optional: build somewhere else (first line of build_outdir.txt), so a trial build can never
+            // touch the master bundles folder. Delete the file to go back to D:/PvZ2RipTest/bundles.
+            if (File.Exists(outputDirFile))
+            {
+                var firstLine = File.ReadAllLines(outputDirFile).Select(l => l.Trim()).FirstOrDefault(l => l.Length > 0);
+                if (!string.IsNullOrEmpty(firstLine))
+                {
+                    outputDir = firstLine;
+                    Debug.Log($"[PvZBundleBuilder] build_outdir.txt present - output goes to {outputDir}");
+                }
+            }
 
             var succeeded = new List<string>();
             var failed = new List<(string name, string error)>();
@@ -124,8 +137,9 @@ namespace PvZRip.Editor
                 string plantName = rawName.ToLowerInvariant();
                 string framesDir = $"{plantDir}/frames";
                 string soundsDir = $"{plantDir}/sounds";
-                string projectileFramesDir = $"{plantDir}/projectile/frames";
-                string projectileHitFramesDir = $"{plantDir}/projectile_hit/frames";
+                bool skipProjectileArt = NoProjectileImport.Contains(plantName);
+                string projectileFramesDir = skipProjectileArt ? null : $"{plantDir}/projectile/frames";
+                string projectileHitFramesDir = skipProjectileArt ? null : $"{plantDir}/projectile_hit/frames";
                 string seedPacketPng = $"{plantDir}/seedpacket/SPR_SeedPacket_{plantName}.png";
                 if (!File.Exists(seedPacketPng))
                 {
@@ -145,7 +159,8 @@ namespace PvZRip.Editor
                     }
                     PvZRipImporter.ImportPlantFull(plantName, framesDir, soundsDir,
                         projectileFramesDir, projectileHitFramesDir, seedPacketPng,
-                        SampleRateOverrides.TryGetValue(plantName, out var plantSampleRate) ? plantSampleRate : sampleRate);
+                        SampleRateOverrides.TryGetValue(plantName, out var plantSampleRate) ? plantSampleRate : sampleRate,
+                        ExcludedPlantLabels.TryGetValue(plantName, out var excluded) ? excluded : null);
 
                     // Per-plant Animator corrections (default state, loops, clip chains) - the
                     // bulk defaults are wrong for plants whose clips aren't literally named idle/attack.
@@ -153,13 +168,16 @@ namespace PvZRip.Editor
 
                     string bundleName = $"pvz{plantName}bundle";
                     TagPlantBundle(bundleName, plantName,
-                        hasProjectile: Directory.Exists(projectileFramesDir),
-                        hasImpact: Directory.Exists(projectileHitFramesDir),
+                        hasProjectile: projectileFramesDir != null && Directory.Exists(projectileFramesDir),
+                        hasImpact: projectileHitFramesDir != null && Directory.Exists(projectileHitFramesDir),
                         hasSeedPacket: !string.IsNullOrEmpty(seedPacketPng));
 
                     // Frame-driven PlaySound Animation Events from the rip's sounds_manifest.json
                     // (no-op if the plant was ripped before plant_sounds.py existed).
                     BakeSoundEventsForPlant(plantName, rawName);
+
+                    // Hand-placed sounds on clips the PAM does not describe (projectile loops).
+                    ApplyHandBakedSounds(plantName);
 
                     succeeded.Add(plantName);
                 }
@@ -177,10 +195,27 @@ namespace PvZRip.Editor
             AssetDatabase.Refresh();
             Directory.CreateDirectory(outputDir);
 
-            var manifest = BuildPipeline.BuildAssetBundles(
-                outputDir,
-                BuildAssetBundleOptions.ForceRebuildAssetBundle | BuildAssetBundleOptions.ChunkBasedCompression,
-                BuildTarget.StandaloneWindows64);
+            AssetBundleManifest manifest;
+            if (filter != null)
+            {
+                // build_only.txt present: build just the bundles of the plants imported in this run, so the
+                // other tagged plants in the project are neither rebuilt nor rewritten (an unrestricted
+                // BuildAssetBundles rewrites every tagged bundle, Dusk Lobber's included).
+                var builds = succeeded.Select(p => $"pvz{p}bundle")
+                    .Select(b => new AssetBundleBuild { assetBundleName = b, assetNames = AssetDatabase.GetAssetPathsFromAssetBundle(b) })
+                    .ToArray();
+                manifest = BuildPipeline.BuildAssetBundles(
+                    outputDir, builds,
+                    BuildAssetBundleOptions.ForceRebuildAssetBundle | BuildAssetBundleOptions.ChunkBasedCompression,
+                    BuildTarget.StandaloneWindows64);
+            }
+            else
+            {
+                manifest = BuildPipeline.BuildAssetBundles(
+                    outputDir,
+                    BuildAssetBundleOptions.ForceRebuildAssetBundle | BuildAssetBundleOptions.ChunkBasedCompression,
+                    BuildTarget.StandaloneWindows64);
+            }
 
             if (manifest == null)
             {
@@ -578,6 +613,57 @@ namespace PvZRip.Editor
 
             switch (plantName)
             {
+                // ---- The six original CC2 plants (re-imported at 30 fps 2026-11-22). Their hand fixes used to
+                // live in per-plant Build<Plant>Bundle/Fix* methods run once in the Editor; the same fixes are
+                // applied here so a fresh ImportPlantFull reproduces them. ----
+                case "firepeashooter":
+                    // Nothing: bulk defaults (idle default, attack -> idle) are what the shipped controller had.
+                    break;
+
+                case "bamboospartan":
+                    // The Battle Trance attack and the shield-break land in the Battle Trance idle, not in the
+                    // bulk-default "idle" (shipped controller, hand-fixed in the Editor in 2026-09).
+                    RewireExit(controllerPath, "battle_trance_attack", "battle_trance_idle1");
+                    RewireExit(controllerPath, "battle_trance_shield_break", "battle_trance_idle1");
+                    break;
+
+                case "endurian":
+                    FixEndurianAnimatorController(controllerPath, root);
+                    break;
+
+                case "celerystalker":
+                    FixCelerystalkerAnimatorController(controllerPath);
+                    break;
+
+                case "iceweed":
+                    FixIceweedAnimatorController(controllerPath);
+                    break;
+
+                case "tumbleweed":
+                {
+                    FixTumbleweedAnimatorControllers();
+                    // attack2 is the Animator's default state and never returns anywhere (the shipped controller
+                    // had no transition on it); the bulk import gave it an exit back to idle1_1.
+                    ClearTransitions(controllerPath, "attack2");
+                    // The projectile's rolling loop (animation3) and the hit effect's default clip (animation3)
+                    // kept the bulk-default exit transition to "animation". At 12 fps that was never reached
+                    // (the loop is 2.4 s, the hit effect is destroyed after 1 s), at 30 fps it is: the ball would
+                    // switch to the one-shot "animation" clip after 1 s and freeze on its last frame, and the
+                    // splat would play a second, different splat. Dropping them keeps the intended behaviour
+                    // (roll continuously / play the splat once).
+                    string modelsRoot = "Assets/plantrip/tumbleweed/models/default";
+                    ClearTransitions($"{modelsRoot}/projectile/ac.controller", "animation3");
+                    ClearTransitions($"{modelsRoot}/projectile_hit/ac.controller", "animation3");
+                    break;
+                }
+
+                case "dusklobber":
+                    // The thorn bulb's flight clip ("animation", 10 frames) is a spinning loop whose last frame
+                    // joins its first. The bulk default plays it once: 0.83 s at 12 fps (the lob flies longer, so
+                    // it froze for its last stretch), 0.33 s at 30 fps - loop it for the whole flight.
+                    ForceLoop($"Assets/plantrip/{plantName}/models/default/projectile", "animation");
+                    break;
+
                 case "explodeonut":
                     // Same layout as Primal Wall-nut: idle/idle2/idle3 are the metal-armoured Plant Food look,
                     // the normal nut is damage (fresh) -> damage2 -> damage3 (cracked), switched by health.
@@ -920,6 +1006,10 @@ namespace PvZRip.Editor
             // One use_action (+16, the barrels spinning up) in a 31-frame clip; ExtraLaunchOffsets turns it
             // into a short stream. attack_stage2 is the Plant Food look and stays unused.
             { "megagatling", l => l == "attack" },
+            // Fire Peashooter: one use_action at +16 of the 31-frame attack clip (the pea leaves the mouth).
+            // FirePeashooterBehaviorController spawns the pea from OnAnimationAttackEvent, so the bundle
+            // and the DLL that does this ship together.
+            { "firepeashooter", l => l == "attack" },
         };
 
         // Plants whose PAM names the launch moment with a command other than use_action*/use_special.
@@ -972,7 +1062,84 @@ namespace PvZRip.Editor
             { "explodeonut", 30f },
             { "stallia", 30f },
             { "megagatling", 30f },
+            // The original CC2 plants, re-exported 2026-11-22: they were first imported at 12 fps, which
+            // runs PvZ2's 30 fps animation 2.5x slow and jerky (Fire Peashooter's 31-frame attack = 2.6 s).
+            { "firepeashooter", 30f },
+            { "bamboospartan", 30f },
+            { "endurian", 30f },
+            { "celerystalker", 30f },
+            { "tumbleweed", 30f },
+            { "iceweed", 30f },
+            // Dusk Lobber: 45-frame attack = 3.75 s at 12 fps against a 3 s launch rate (1.5 s now).
+            { "dusklobber", 30f },
         };
+
+        // Plants whose export folder has projectile/projectile_hit art that the shipped bundle must NOT
+        // contain (Iceweed: the Plant Food saw is out of scope, the original bundle never had it).
+        // Plant clip labels that are NOT imported (no sprites, clip or Animator state), because nothing in the mod
+        // can ever play them - they only cost bundle size. Check the plant's C# definition and the controller
+        // fixes before adding to this list; every Fix* method must not reference an excluded label.
+        // Endurian: "armor"/"armor2" are the Plant Food armour look (Replanted never triggers Plant Food) and the
+        // undamaged attack_start/attack_loop/attack_end use that same armoured art - Endurian.cs only plays
+        // idle/idle2/idle3 and attack_start_damage[N]/attack_end_damage[N] (attack_loop_damage[N] via the
+        // controller exit transition). ~60 of the ~65 MB of source PNGs.
+        static readonly Dictionary<string, string[]> ExcludedPlantLabels = new Dictionary<string, string[]>
+        {
+            { "endurian", new[] { "armor", "armor2", "attack_start", "attack_loop", "attack_end" } },
+        };
+
+        static readonly HashSet<string> NoProjectileImport = new HashSet<string> { "iceweed" };
+
+        // Frame-driven sounds that were placed BY HAND on clips the PAM does not describe (BakeSoundEventsForPlant
+        // only covers plant clips). ImportPlantFull regenerates the clips, so they are re-applied here:
+        // plant -> (clip path under models/default, frame index in the clip, wem id of the ogg in the plant's sounds/).
+        // Frame indexes, not times, so they stay on the same keyframe whatever the clip's sample rate is.
+        // Tumbleweed's rolling-ball whooshes (7 events over the 29-frame "animation3" loop, hand-placed 2026-09,
+        // read back from the shipped 12 fps clip); the PAM has no events for this projectile at all.
+        static readonly Dictionary<string, (string clip, int frame, int wem)[]> HandBakedSounds =
+            new Dictionary<string, (string, int, int)[]>
+            {
+                { "tumbleweed", new[]
+                    {
+                        ("projectile/animation3/animation3.anim", 1, 961886938),
+                        ("projectile/animation3/animation3.anim", 8, 983543462),
+                        ("projectile/animation3/animation3.anim", 12, 961886938),
+                        ("projectile/animation3/animation3.anim", 19, 961886938),
+                        ("projectile/animation3/animation3.anim", 19, 983543462),
+                        ("projectile/animation3/animation3.anim", 22, 961886938),
+                        ("projectile/animation3/animation3.anim", 26, 983543462),
+                    } },
+            };
+
+        static void ApplyHandBakedSounds(string plantName)
+        {
+            if (!HandBakedSounds.TryGetValue(plantName, out var entries)) return;
+            string modelsRoot = $"Assets/plantrip/{plantName}/models/default";
+            foreach (var group in entries.GroupBy(e => e.clip))
+            {
+                var clip = AssetDatabase.LoadAssetAtPath<AnimationClip>($"{modelsRoot}/{group.Key}");
+                if (clip == null)
+                {
+                    Debug.LogError($"[BakeSound] hand-baked sounds: no clip {modelsRoot}/{group.Key}");
+                    continue;
+                }
+                var times = FrameTimes(clip);
+                var events = AnimationUtility.GetAnimationEvents(clip)
+                    .Where(ev => ev.functionName != "PlaySound").ToList();
+                var added = new List<string>();
+                foreach (var (_, frame, wem) in group)
+                {
+                    var sfx = LoadPlantSound(plantName, wem);
+                    if (sfx == null || frame >= times.Length) { Debug.LogError($"[BakeSound] hand-baked {wem}@{frame} unusable in {group.Key}"); continue; }
+                    events.Add(new AnimationEvent { time = times[frame], functionName = "PlaySound", objectReferenceParameter = sfx });
+                    added.Add($"{wem}@{frame}");
+                }
+                AnimationUtility.SetAnimationEvents(clip, events.ToArray());
+                EditorUtility.SetDirty(clip);
+                Debug.Log($"[BakeSound] {plantName}/{group.Key}: hand-baked sounds re-applied [{string.Join(", ", added)}]");
+            }
+            AssetDatabase.SaveAssets();
+        }
 
         [Serializable] class SndManifest { public SndAnimation[] animations; }
 

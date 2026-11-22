@@ -245,6 +245,18 @@ cooldown), so at 12 fps those clips run 2.5x long (Dusk Lobber's 45-frame attack
 rate). `SampleRateOverrides` (same file) lists plants imported at 30 fps instead; delete an entry to go back.
 Event times are taken from the clip's own keyframes, so they stay in sync either way.
 
+2026-11-22: the six original CC2 plants (Fire Peashooter, Bamboo Spartan, Endurian, Celery Stalker, Tumbleweed,
+Iceweed) were re-imported at 30 fps too. Their per-plant fixes (`FixEndurianAnimatorController`, `FixCelery...`,
+`FixIceweed...`, `FixTumbleweedAnimatorControllers`, Bamboo's Battle Trance exits) now run from
+`ApplyPlantAnimatorFixes`, so `build_only.txt` + `ImportAndBuildAllRipped` reproduces them. Things that only work
+with that import: `NoProjectileImport` (Iceweed's unused Plant Food art stays out of the bundle) and
+`HandBakedSounds` (Tumbleweed's hand-placed rolling whooshes on the projectile, which the PAM has no events for).
+`D:/PvZ2RipTest/build_outdir.txt` (optional, first line = output folder) redirects the build away from
+`D:/PvZ2RipTest/bundles`, and while `build_only.txt` is present only the imported plants' bundles are built
+(an unrestricted build rewrites every tagged bundle, Dusk Lobber's included). NOTE: the frames under
+`export_all/<PLANT>/frames` of those older plants were stale (Aug fixed-width crops) - re-run `pam_compositor.py`
+(it reproduces the shipped sprites byte for byte) before importing an old plant.
+
 ### Per-plant Animator fixes in the bulk import
 
 `ImportPlantFull` builds the controller from bulk defaults (default state `idle`, one-shot exit transition back
