@@ -35,7 +35,16 @@
         162,
         142
       ]
-    }
+    },
+    "effects": [
+      {
+        "name": "heal",
+        "pam": "/mnt/d/PvZ/ReverseEngineering/PvZ2-OBB-Rip/pvz2_original_unpacked/IMAGES/768/INITIAL/EFFECTS/ALOE_HEAL_EFFECT/ALOE_HEAL_EFFECT.PAM",
+        "labels": [
+          "animation"
+        ]
+      }
+    ]
   },
   {
     "name": "APPLEMORTAR",
@@ -617,6 +626,14 @@
     "group_id": "PlantChillyPepper_1536",
     "bnk": "/mnt/d/PvZ/ReverseEngineering/PvZ2-OBB-Rip/pvz2_original_unpacked/SOUNDBANKS/PLANT_CHILIPEPPER.BNK",
     "projectile": null,
+    "effects": [
+      {
+        "name": "tile_ice",
+        "pam": "/mnt/d/PvZ/ReverseEngineering/PvZ2-OBB-Rip/pvz2_original_unpacked/IMAGES/768/INITIAL/EFFECTS/CHILLYPEPPER_TILE_ICE/CHILLYPEPPER_TILE_ICE.PAM",
+        "hold_frames": 30,
+        "fade_frames": 15
+      }
+    ],
     "seedpacket": {
       "atlas_png": "/mnt/d/PvZ/ReverseEngineering/PvZ2-OBB-Rip/pvz2_original_unpacked/ATLASES/UI_SEEDPACKETS_1536_00.PNG",
       "rect": [
@@ -2175,7 +2192,7 @@
         "attack 5"
       ]
     },
-"seedpacket": {
+    "seedpacket": {
       "atlas_png": "/mnt/d/PvZ/ReverseEngineering/PvZ2-OBB-Rip/pvz2_original_unpacked/ATLASES/UI_SEEDPACKETS_1536_00.PNG",
       "rect": [
         158,
@@ -2316,9 +2333,9 @@
     "group_id": "PlantPrimalPeashooter_1536",
     "bnk": "/mnt/d/PvZ/ReverseEngineering/PvZ2-OBB-Rip/pvz2_original_unpacked/SOUNDBANKS/PLANT_PRIMALPEASHOOTER.BNK",
     "projectile": {
-      "alias": "PRIMALPEASHOOTERFIREPEA",
-      "attached_pam": "/mnt/d/PvZ/ReverseEngineering/PvZ2-OBB-Rip/pvz2_original_unpacked/IMAGES/768/INITIAL/EFFECTS/T_FIRE_PEA/T_FIRE_PEA.PAM",
-      "impact_pam": "/mnt/d/PvZ/ReverseEngineering/PvZ2-OBB-Rip/pvz2_original_unpacked/IMAGES/768/INITIAL/EFFECTS/T_SPLAT_FIRE_PEA/T_SPLAT_FIRE_PEA.PAM"
+      "alias": "PRIMALPEASHOOTERPEA",
+      "attached_pam": "/mnt/d/PvZ/ReverseEngineering/PvZ2-OBB-Rip/pvz2_original_unpacked/IMAGES/768/FULL/EFFECTS/T_PEA_ROCK_PROJECTILE/T_PEA_ROCK_PROJECTILE.PAM",
+      "impact_pam": "/mnt/d/PvZ/ReverseEngineering/PvZ2-OBB-Rip/pvz2_original_unpacked/IMAGES/768/FULL/EFFECTS/T_SPLAT_PEA_ROCK/T_SPLAT_PEA_ROCK.PAM"
     },
     "seedpacket": {
       "atlas_png": "/mnt/d/PvZ/ReverseEngineering/PvZ2-OBB-Rip/pvz2_original_unpacked/ATLASES/UI_SEEDPACKETS_1536_00.PNG",
@@ -2347,7 +2364,18 @@
         167,
         140
       ]
-    }
+    },
+    "effects": [
+      {
+        "name": "explosion",
+        "pam": "/mnt/d/PvZ/ReverseEngineering/PvZ2-OBB-Rip/pvz2_original_unpacked/IMAGES/768/INITIAL/EFFECTS/PRIMAL_POTATOMINE_EXPLOSION/PRIMAL_POTATOMINE_EXPLOSION.PAM",
+        "atlas_png": "/mnt/d/PvZ/ReverseEngineering/PvZ2-OBB-Rip/pvz2_original_unpacked/ATLASES/PLANTPRIMALPOTATOMINEEXPLOSION_1536_00.PNG",
+        "group_id": "PlantPrimalPotatomineExplosion_1536",
+        "labels": [
+          "animation"
+        ]
+      }
+    ]
   },
   {
     "name": "PRIMAL_SUNFLOWER",
@@ -2789,7 +2817,16 @@
         130,
         140
       ]
-    }
+    },
+    "effects": [
+      {
+        "name": "fire",
+        "pam": "/mnt/d/PvZ/ReverseEngineering/PvZ2-OBB-Rip/pvz2_original_unpacked/IMAGES/768/FULL/EFFECTS/SNAPDRAGON_FIRE/SNAPDRAGON_FIRE.PAM",
+        "labels": [
+          "animation"
+        ]
+      }
+    ]
   },
   {
     "name": "SNAPPEA",

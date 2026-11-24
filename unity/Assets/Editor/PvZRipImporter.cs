@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
+using System.Linq;
 using UnityEditor;
 using UnityEditor.Animations;
 using UnityEngine;
@@ -82,6 +83,100 @@ namespace PvZRip.Editor
             AssetDatabase.Refresh();
             Debug.Log($"[PvZRipImporter] Imported '{plantName}': {stateCount} states, {frameCount} frames, " +
                       $"{soundCount} sounds, projectile={hasProjectile}, hit={hasImpact}, seedpacket={hasSeedPacket}");
+        }
+
+        [System.Serializable]
+        class EffectSettings { public int hold_frames; public int fade_frames; public float frame_rate; }
+
+        // Extra animated effects a plant spawns on its own (rip_plant.py "effects"): every folder under
+        // <plantDir>/effects/<name>/ (frames/ + effect.json) becomes its own prefab + AnimatorController under
+        // Assets/plantrip/<plant>/models/default/effects/<name>/<name>.prefab - same layout and 30 fps clips as the
+        // plant's other sub-objects, tagged into the plant's bundle by PvZBundleBuilder.TagPlantBundle. The
+        // effect's default state plays on its own when the prefab is instantiated (no code timers); it is a
+        // play-once clip. effect.json's hold_frames / fade_frames extend that clip (see ExtendEffectClip).
+        // Returns the effect names that were imported.
+        public static List<string> ImportPlantEffects(string plantName, string plantExportDir, float sampleRate)
+        {
+            var imported = new List<string>();
+            string effectsRoot = Path.Combine(plantExportDir, "effects");
+            if (!Directory.Exists(effectsRoot)) return imported;
+
+            foreach (var effectDir in Directory.GetDirectories(effectsRoot).OrderBy(d => d))
+            {
+                string effectName = Path.GetFileName(effectDir);
+                string framesDir = Path.Combine(effectDir, "frames");
+                if (!File.Exists(Path.Combine(framesDir, "manifest.tsv"))) continue;
+
+                var settings = new EffectSettings();
+                string settingsPath = Path.Combine(effectDir, "effect.json");
+                if (File.Exists(settingsPath)) settings = JsonUtility.FromJson<EffectSettings>(File.ReadAllText(settingsPath));
+                // The effect PAM's own frame rate when the rip recorded one (some PvZ2 effects are 24 fps, most
+                // are 30), else the plant's.
+                float effectRate = settings.frame_rate > 0f ? settings.frame_rate : sampleRate;
+
+                string objectRoot = $"Assets/plantrip/{plantName}/models/default/effects/{effectName}";
+                BuildAnimatedObject(objectRoot, effectName, framesDir, effectRate, out int frames, out int states);
+                if (settings.hold_frames > 0 || settings.fade_frames > 0)
+                {
+                    foreach (var clipPath in AssetDatabase.FindAssets("t:AnimationClip", new[] { objectRoot }))
+                    {
+                        ExtendEffectClip(AssetDatabase.GUIDToAssetPath(clipPath), effectRate, settings.hold_frames, settings.fade_frames);
+                    }
+                }
+                AssetDatabase.SaveAssets();
+                AssetDatabase.Refresh();
+                Debug.Log($"[PvZRipImporter] Imported effect '{plantName}/{effectName}': {states} clip(s), {frames} frames, " +
+                          $"hold {settings.hold_frames} + fade {settings.fade_frames} frames -> {objectRoot}/{effectName}.prefab");
+                imported.Add(effectName);
+            }
+            return imported;
+        }
+
+        // The PAM of a one-shot ground effect just stops on its last frame - how long the effect then stays is the
+        // game's decision (PvZ2's data does not say). The clip is extended frame-driven instead of by a code timer:
+        // its last sprite is held for holdFrames, then the SpriteRenderer alpha fades 1 -> 0 over fadeFrames.
+        // After the clip's last key the Animator keeps the final (invisible) pose until the instance is destroyed.
+        static void ExtendEffectClip(string clipPath, float sampleRate, int holdFrames, int fadeFrames)
+        {
+            var clip = AssetDatabase.LoadAssetAtPath<AnimationClip>(clipPath);
+            if (clip == null) return;
+
+            var spriteBinding = EditorCurveBinding.PPtrCurve("", typeof(SpriteRenderer), "m_Sprite");
+            var keys = AnimationUtility.GetObjectReferenceCurve(clip, spriteBinding);
+            if (keys == null || keys.Length == 0) return;
+
+            float lastSpriteTime = keys[keys.Length - 1].time;
+            float holdEnd = lastSpriteTime + holdFrames / sampleRate;
+            float end = holdEnd + fadeFrames / sampleRate;
+
+            if (end > lastSpriteTime)
+            {
+                // Same sprite again at the end so the clip is as long as hold + fade.
+                var extended = new List<ObjectReferenceKeyframe>(keys)
+                {
+                    new ObjectReferenceKeyframe { time = end, value = keys[keys.Length - 1].value }
+                };
+                AnimationUtility.SetObjectReferenceCurve(clip, spriteBinding, extended.ToArray());
+            }
+
+            if (fadeFrames > 0)
+            {
+                var alpha = new AnimationCurve(
+                    new Keyframe(0f, 1f),
+                    new Keyframe(holdEnd, 1f),
+                    new Keyframe(end, 0f));
+                for (int i = 0; i < alpha.length; i++)
+                {
+                    AnimationUtility.SetKeyLeftTangentMode(alpha, i, AnimationUtility.TangentMode.Linear);
+                    AnimationUtility.SetKeyRightTangentMode(alpha, i, AnimationUtility.TangentMode.Linear);
+                }
+                AnimationUtility.SetEditorCurve(clip, EditorCurveBinding.FloatCurve("", typeof(SpriteRenderer), "m_Color.a"), alpha);
+            }
+
+            EditorUtility.SetDirty(clip);
+            AssetDatabase.SaveAssets();
+            Debug.Log($"[PvZRipImporter] Extended effect clip {clipPath}: last sprite {lastSpriteTime:F3}s, hold to {holdEnd:F3}s, " +
+                      $"fade to {end:F3}s (alpha curve: {(fadeFrames > 0)})");
         }
 
         static int ImportSounds(string plantName, string soundsDir)
@@ -191,13 +286,12 @@ namespace PvZRip.Editor
 
                     var settings = new TextureImporterSettings();
                     importer.ReadTextureSettings(settings);
-                    // Constant per-plant pivot from the manifest (horizontal center,
-                    // vertical = idle's own resting foot line) applied identically to
-                    // every frame - see pam_compositor.py's export_all for why: no
-                    // per-plant offset exists anywhere in the actual mod code, so this
-                    // is baked in at export time instead, same as real prefabs bake
-                    // their own per-character correction into the "anim" child's
-                    // transform rather than into any runtime C# field.
+                    // Pivot straight from the manifest: x = 0.5 (frames are cropped symmetric around the anchor
+                    // x), y = (frame bottom - lowest point of the whole animation set) / frame height, i.e. 0 for
+                    // the lowest frame and NEGATIVE (pivot below the image) for higher ones, so every frame
+                    // shares ONE fixed bottom-middle anchor. See README "Frame cropping and the anchor" and
+                    // pam_compositor.py export_all. No per-plant offset exists in the mod code: it is all baked
+                    // in at export time, like real prefabs bake theirs into the "anim" child's transform.
                     settings.spriteAlignment = (int)SpriteAlignment.Custom;
                     var (px, py) = frameInfo[$"{label}/{filename}"];
                     settings.spritePivot = new Vector2(px, py);

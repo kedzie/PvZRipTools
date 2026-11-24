@@ -3,6 +3,8 @@
 -> export to a Windows-visible dir ready for PvZRipImporter.ImportPlant.
 
 Usage: rip_plant.py <plant_json_entry_index_or_name> [--all]
+       rip_plant.py --effects-only <name> [<name> ...]   (re-rip just the plants.json "effects", leave the
+                                                          rest of the export and rip_results.json untouched)
 """
 import json
 import os
@@ -46,11 +48,12 @@ def run_popstudio_decode_pam(pam_file: Path):
     return out
 
 
-def run_pam_compositor(pam_json, resources_json, atlas_png, group_id, out_dir: Path, skip_image_suffix: str = ""):
+def run_pam_compositor(pam_json, resources_json, atlas_png, group_id, out_dir: Path, skip_image_suffix: str = "",
+                       anchor: str = "standing"):
     out_dir.mkdir(parents=True, exist_ok=True)
     result = subprocess.run(
         ["python3", str(PAM_COMPOSITOR), str(pam_json), str(resources_json), str(atlas_png), group_id,
-         "--all", str(out_dir)],
+         "--all", str(out_dir), "--anchor", anchor],
         capture_output=True, text=True,
         env={**os.environ, "PAM_SKIP_IMAGE_SUFFIX": skip_image_suffix},
     )
@@ -129,6 +132,56 @@ def crop_seedpacket(seedpacket: dict, out_png: Path, frames_dir: Path = None) ->
     return note
 
 
+def rip_effects(entry: dict, export_dir: Path, work_dir: Path) -> list:
+    """Extra animated effects a plant spawns on its own (plants.json "effects": a list of
+    {"name", "pam", optional "atlas_png"/"group_id" (default: the plant's), "hold_frames", "fade_frames"}).
+    Chilly Pepper's CHILLYPEPPER_TILE_ICE (the ice patch left on every tile of its lane) is the first.
+    Each one is composited like a projectile and exported to <export>/effects/<name>/frames, plus an
+    effect.json with the optional hold/fade extension the Unity importer appends to the clip (the PAM
+    just stops on its last frame; the game decides when the effect goes away). Returns status lines."""
+    msgs = []
+    for fx in entry.get("effects") or []:
+        name = fx["name"]
+        try:
+            fx_json = run_popstudio_decode_pam(Path(fx["pam"]))
+            fx_frames = work_dir / f"effect_{name}_frames"
+            if fx_frames.exists():
+                shutil.rmtree(fx_frames)
+            msg = run_pam_compositor(fx_json, entry["resources_json"],
+                                     fx.get("atlas_png", entry["atlas_png"]),
+                                     fx.get("group_id", entry["group_id"]), fx_frames, anchor="lowest")
+            dest = export_dir / "effects" / name
+            if dest.exists():
+                shutil.rmtree(dest)
+            dest.mkdir(parents=True)
+            shutil.copytree(fx_frames, dest / "frames")
+            keep = fx.get("labels")
+            if keep:
+                # "labels": keep only these clips (a PAM often carries random variants of the same effect;
+                # the unused ones would only cost bundle size). Folders and manifest entries are filtered.
+                for child in list((dest / "frames").iterdir()):
+                    if child.is_dir() and child.name not in keep:
+                        shutil.rmtree(child)
+                mj = dest / "frames" / "manifest.json"
+                if mj.exists():
+                    data = json.load(open(mj))
+                    json.dump({k: v for k, v in data.items() if k.split("/")[0] in keep}, open(mj, "w"), indent=2)
+                mt = dest / "frames" / "manifest.tsv"
+                if mt.exists():
+                    lines = [l for l in open(mt).read().splitlines() if l.split("\t")[0] in keep]
+                    open(mt, "w").write("\n".join(lines) + "\n")
+            with open(dest / "effect.json", "w") as f:
+                # frame_rate: the effect PAM's own (24 for some, 30 for others); the importer uses it for this
+                # effect's clip instead of the plant's rate.
+                json.dump({"hold_frames": int(fx.get("hold_frames", 0)),
+                           "fade_frames": int(fx.get("fade_frames", 0)),
+                           "frame_rate": float(json.load(open(fx_json)).get("frame_rate", 0))}, f, indent=2)
+            msgs.append(f"effect {name}: {msg}")
+        except Exception as e:
+            msgs.append(f"effect {name}: FAILED: {e}")
+    return msgs
+
+
 def rip_plant(entry: dict) -> dict:
     name = entry["name"]
     plant_work = WORK / name
@@ -174,7 +227,7 @@ def rip_plant(entry: dict) -> dict:
                 # pea is in LEVELCOMMON): optional "atlas_png"/"group_id" in the projectile block.
                 projectile_msg = run_pam_compositor(proj_pam_json, entry["resources_json"],
                                                       projectile.get("atlas_png", entry["atlas_png"]),
-                                                      projectile.get("group_id", entry["group_id"]), proj_frames)
+                                                      projectile.get("group_id", entry["group_id"]), proj_frames, anchor="lowest")
                 shutil.copytree(proj_frames, export_dir / "projectile" / "frames")
             except Exception as e:
                 projectile_msg = f"FAILED: {e}"
@@ -184,10 +237,12 @@ def rip_plant(entry: dict) -> dict:
                 hit_frames = plant_work / "projectile_hit_frames"
                 impact_msg = run_pam_compositor(hit_pam_json, entry["resources_json"],
                                                   projectile.get("atlas_png", entry["atlas_png"]),
-                                                  projectile.get("group_id", entry["group_id"]), hit_frames)
+                                                  projectile.get("group_id", entry["group_id"]), hit_frames, anchor="lowest")
                 shutil.copytree(hit_frames, export_dir / "projectile_hit" / "frames")
             except Exception as e:
                 impact_msg = f"FAILED: {e}"
+
+    effects_msg = rip_effects(entry, export_dir, plant_work)
 
     seedpacket_ok = False
     seedpacket = entry.get("seedpacket")
@@ -219,6 +274,7 @@ def rip_plant(entry: dict) -> dict:
         "ogg_converted": n_converted,
         "projectile_msg": projectile_msg,
         "impact_msg": impact_msg,
+        "effects_msg": effects_msg,
         "seedpacket_ok": seedpacket_ok,
         "export_dir": str(export_dir),
     }
@@ -227,6 +283,19 @@ def rip_plant(entry: dict) -> dict:
 def main():
     with open(TOOLS_DIR / "plants.json") as f:
         plants = json.load(f)
+
+    if len(sys.argv) > 1 and sys.argv[1] == "--effects-only":
+        # Re-rip only the "effects" of the named plants: the plant's own frames/sounds/seed packet and
+        # rip_results.json are left exactly as they are.
+        names = set(sys.argv[2:])
+        rc = 0
+        for entry in [p for p in plants if p["name"] in names]:
+            work_dir = WORK / entry["name"]
+            work_dir.mkdir(parents=True, exist_ok=True)
+            for m in rip_effects(entry, EXPORT_WIN_ROOT / entry["name"], work_dir):
+                print(f"{entry['name']}: {m}")
+                rc |= m.find("FAILED") >= 0
+        sys.exit(rc)
 
     if len(sys.argv) > 1 and sys.argv[1] == "--all":
         targets = plants
@@ -245,6 +314,8 @@ def main():
                 extras.append(f"proj={'OK' if not res['projectile_msg'].startswith('FAILED') else 'FAIL'}")
             if res["impact_msg"]:
                 extras.append(f"hit={'OK' if not res['impact_msg'].startswith('FAILED') else 'FAIL'}")
+            for m in res.get("effects_msg") or []:
+                extras.append(f"[{m}]")
             if res["seedpacket_ok"]:
                 extras.append("seed=OK")
             if res.get("sounds_msg"):

@@ -188,7 +188,8 @@ class PamAsset:
             ranges.append((label, start, end))
         return ranges
 
-    def export_all(self, out_dir, canvas_size=1600, origin=(800, 800), skip_labels_containing=("plantfood",)):
+    def export_all(self, out_dir, canvas_size=1600, origin=(800, 800), skip_labels_containing=("plantfood",),
+                   anchor="standing", anchor_ignore_label_prefixes=("water", "pf", "plantfood")):
         """Render every global frame, sliced into <out_dir>/<label>/frame_<N+1>.png,
         matching the AssetBundle-UnityProject convention (1-indexed filenames).
 
@@ -209,14 +210,27 @@ class PamAsset:
         most frames - anything narrower than the single widest lunge/reach in
         the whole clip - carried large, pure-transparent side margins; measured
         as high as ~75-90% wasted pixel area per frame on FirePeashooter).
-        Height is NOT unified across frames either: each frame keeps its own
-        natural tight height, and pivot_y=0 (bottom). Since Unity's pivot is a
-        FRACTION of each individual texture's own bounds, "bottom" always means
-        that specific frame's own bottom edge regardless of its height, and
-        (with this same reasoning now applied to width too) 0.5 always means
-        that frame's own horizontal center of mass around the shared reference
-        - so every frame's feet and anchor line up automatically without
-        needing a per-frame pivot value.
+        ANCHOR (vertical): every frame shares ONE fixed anchor point, bottom-middle of a reference line
+        (the largest bbox bottom over the frames that define it), so the subject stands centred in its
+        square and anything that jumps, slides, lunges or sinks does so RELATIVE to that point.
+          anchor="standing" (plants, the default): the lowest point of the STANDING clips (every clip whose
+            label contains "idle"), i.e. the plant's feet on the ground line. A clip that reaches lower
+            (an explosion, a lunge, a burst below the feet) hangs below the feet and keeps its real motion;
+            it does not lift the idle pose off the ground. A plant with no idle clip (e.g. an instant plant)
+            falls back to the first frame of its first clip (its planted pose).
+          anchor="lowest" (effects, projectiles, hit effects): the lowest point of the WHOLE animation set,
+            because they have no standing pose.
+          anchor="frame_bottom": every frame at its OWN bottom edge - the old behaviour, kept only for
+            comparing: it makes static parts wobble and flattens jumps.
+        Unity's pivot is a fraction of each frame's own (tight) image, so a frame whose own bottom is above
+        the reference gets a pivot BELOW its image (negative pivot_y = (frame_bottom - reference) /
+        frame_height) and one that reaches below it a positive pivot_y > 0 (above its bottom edge). Frame
+        heights stay tight (no transparent padding, so no extra texture memory).
+        Clips whose label starts with anchor_ignore_label_prefixes ("water": the plant standing in a
+        ducky tube, which hangs below the feet; "pf*"/"plantfood*": Plant Food clips, which Replanted
+        never plays) still get exported with the same anchor but do not take part in finding the
+        lowest point - otherwise every land plant would be lifted by the tube / the Plant Food art
+        (Bamboo Spartan's pf_attack alone reaches 170 px below his feet).
 
         plantfood-labeled frames are excluded (and not exported) since Plant Food
         is a PvZ2 mobile feature not present in Replanted.
@@ -250,6 +264,22 @@ class PamAsset:
 
         center_x = (first_frame_bbox[0] + first_frame_bbox[2]) / 2.0 if first_frame_bbox else None
 
+        def counts_for_anchor(label):
+            return not any(label.lower().startswith(p) for p in anchor_ignore_label_prefixes)
+
+        counted = [(lbl, gi) for lbl, gi in frame_list if bboxes[gi] is not None and counts_for_anchor(lbl)]
+        if not counted:  # every clip is an ignored one: fall back to all of them
+            counted = [(lbl, gi) for lbl, gi in frame_list if bboxes[gi] is not None]
+        lowest = None
+        if anchor == "standing":
+            standing = [bboxes[gi][3] for lbl, gi in counted if "idle" in lbl.lower()]
+            if standing:
+                lowest = max(standing)
+            elif counted:
+                lowest = bboxes[counted[0][1]][3]  # no idle clip: the planted pose (first frame)
+        elif counted:
+            lowest = max(bboxes[gi][3] for _, gi in counted)
+
         manifest = {}
         for label, global_index in frame_list:
             label_dir = out_dir / label
@@ -268,9 +298,12 @@ class PamAsset:
                 cropped.paste(tight, (paste_x, 0), tight)
             fname = f"frame_{global_index + 1}.png"
             cropped.save(label_dir / fname)
+            pivot_y = 0.0
+            if anchor != "frame_bottom" and bbox is not None and lowest is not None:
+                pivot_y = (bbox[3] - lowest) / float(max(1, cropped.size[1]))
             manifest[f"{label}/{fname}"] = {
                 "bbox": [left, bbox[1], right, bbox[3]] if bbox and left is not None else bbox,
-                "pivot": [0.5, 0.0],
+                "pivot": [0.5, pivot_y],
                 "size": list(cropped.size),
             }
         with open(out_dir / "manifest.json", "w") as f:
@@ -291,7 +324,10 @@ def main():
     asset = PamAsset(pam_json, resources_json, atlas_png, group_id)
     if len(sys.argv) > 5 and sys.argv[5] == "--all":
         out_dir = sys.argv[6] if len(sys.argv) > 6 else "export"
-        manifest = asset.export_all(out_dir)
+        anchor = "standing"
+        if "--anchor" in sys.argv:
+            anchor = sys.argv[sys.argv.index("--anchor") + 1]
+        manifest = asset.export_all(out_dir, anchor=anchor)
         print(f"exported {len(manifest)} frames to {out_dir}, labels: {[l for l,_,_ in asset.label_ranges()]}")
     else:
         frame_idx = sys.argv[5] if len(sys.argv) > 5 else "0"

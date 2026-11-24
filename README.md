@@ -136,6 +136,37 @@ PopStudio needs building from source (`PopStudio.ConsoleProject`, .NET
   `C:\Program Files\Unity\...` path - edit if yours differs).
 
 
+## Frame cropping and the anchor (applies to plants, projectiles, hit effects and extra effects alike)
+
+Every exported frame follows the same rules (`pam_compositor.py`, `PamAsset.export_all`):
+
+1. **One fixed anchor per animation set: bottom-middle of a reference line, the same for every frame of every clip.** It is what
+   puts a plant centred in its square, and anything that jumps, slides, lunges or sinks does so *relative to that point* (it keeps
+   its real motion). It is **not** each frame's own bottom edge: that was the old behaviour (`--anchor frame_bottom`, kept only for
+   comparing), which re-aligned every frame to its own bottom, made static parts wobble (Chilly Pepper's ice slab) and flattened jumps.
+   * **Plants (`--anchor standing`, the default): the lowest point of the standing clips**, i.e. every clip whose label contains
+     `idle` = the plant's feet on the ground line. A clip that reaches lower (Bombegranate's explosion, Stallia's burst, a lunge)
+     hangs below the feet; it must not lift the idle pose off the ground. A plant with no idle clip uses the first frame of its first clip.
+   * **Effects, projectiles and hit effects (`--anchor lowest`): the lowest point of the whole animation set** (they have no
+     standing pose).
+   * Clips labelled `water*` (the plant standing in a ducky tube, which hangs below the feet) and `pf*` / `plantfood*` (Plant Food,
+     never played in Replanted) are exported with the same anchor but never take part in finding the reference.
+     (`plantfood*` clips are in fact not exported at all.)
+2. **Vertical clip: as tight as possible, every frame.** The image is cut to the frame's own visible bbox, top and bottom
+   (no transparent padding, no texture memory wasted). The fixed anchor is carried by the sprite **pivot**, not by padding:
+   `pivot_y = (frame_bottom - reference) / frame_height`: 0 for a frame whose bottom is the reference, NEGATIVE (pivot below the
+   image) for a frame whose bottom is higher, POSITIVE (pivot above its bottom edge) for a frame that reaches below the reference. Unity's custom sprite pivot accepts that.
+3. **Horizontal clip: as tight as possible, symmetric around the anchor.** The anchor x is the horizontal centre of the first
+   exported frame. Each frame's width is exactly 2 x its own furthest excursion (left or right) from that x, with the anchor kept at
+   the exact centre (`pivot_x = 0.5`). So however far a frame reaches to one side, the image is that distance x 2 wide, and a
+   frame with a small sway is a small image.
+4. The importer applies each frame's `manifest.tsv` pivot as-is (`spriteAlignment = Custom`, 1 px = 1 unit). Nothing in the mod's C#
+   adds a per-plant offset: everything is baked in here.
+
+Consequence for game code: an effect / projectile placed "at a position" has its fixed anchor there (bottom-middle of its lowest
+point), so work out the offset from the art (`manifest.json` has each frame's bbox) rather than assuming "pivot = bottom of the
+sprite". Chilly Pepper's ice is the worked example (`ChillyPepper.cs`: slab centre is 168 px above the anchor).
+
 ## Sounds: frame-driven `PlaySound` events, derived from the data (not by ear)
 
 **Rule (from the mod author): sounds are baked into the Unity clips as `PlaySound` Animation Events on
@@ -257,6 +288,56 @@ with that import: `NoProjectileImport` (Iceweed's unused Plant Food art stays ou
 `export_all/<PLANT>/frames` of those older plants were stale (Aug fixed-width crops) - re-run `pam_compositor.py`
 (it reproduces the shipped sprites byte for byte) before importing an old plant.
 
+### Extra effects a plant spawns on its own (`effects` block, Chilly Pepper's lane ice)
+
+A `plants.json` entry may carry `"effects": [{"name": "tile_ice", "pam": ".../CHILLYPEPPER_TILE_ICE.PAM",
+"hold_frames": 30, "fade_frames": 15}]` (optional `atlas_png`/`group_id`, default = the plant's own atlas). `rip_plant.py`
+composites each PAM like a projectile into `export_all/<PLANT>/effects/<name>/frames` and writes an `effect.json` next to it;
+`python3 rip_plant.py --effects-only CHILLYPEPPER` re-rips just those (the plant's frames/sounds/seed packet and
+`rip_results.json` stay untouched, so it is safe on an already-imported plant). On the Unity side
+`PvZRipImporter.ImportPlantEffects` builds one prefab + AnimatorController per effect under
+`models/default/effects/<name>/<name>.prefab` (30 fps per `SampleRateOverrides`, a play-once clip, default state = the clip,
+nothing for code to start) and `TagPlantBundle` puts it into the plant's bundle, next to the plant prefab, seed packet and sounds
+(bundle path `assets/plantrip/<plant>/models/default/effects/<name>/<name>.prefab`).
+
+* `ImportAndBuildAllRipped` (build_only.txt + build_outdir.txt) does all of that as part of a normal plant import.
+* `ImportEffectsAndBuildOnly` does ONLY the effects and then builds the plant's bundle from the project's current state - it
+  never calls `ImportPlantFull`, so the plant prefab, clips (with their baked sound/ExecuteAttack/OwnerDie events), controller,
+  sounds and seed packet are not regenerated. Wrapper: `D:/PvZ2RipTest/run_unity_effects.bat <logname>`.
+* A PAM just stops on its last frame; how long the effect stays is the game's decision. `hold_frames`/`fade_frames` (0 = off)
+  extend the clip frame-driven: the last sprite is held, then the SpriteRenderer alpha fades 1 -> 0 (an alpha curve in the clip,
+  no code timer). The game destroys the instance after the clip length (`Object.Destroy(instance, seconds)`), like the hit effects.
+* Chilly Pepper's `tile_ice` (PvZ2 `CHILLYPEPPER_TILE_ICE`, 20 frames, uses the plant's atlas): the effect has no reference
+  anywhere in PvZ2's data (PLANTPROPERTIES/PLANTTYPES/RESOURCES only list the PAM and its atlas rects), so the stagger / lane
+  / lifetime are the mod's choice - see `ChillyPepper.cs`.
+
+### Effect options added 2026-11-23 (`labels`, `frame_rate`) and how to place an effect
+
+* `"labels": ["animation"]` in an `effects` entry keeps only those clips of the effect PAM (PvZ2 effects usually carry 2-3
+  random variants of the same burst - Snapdragon's fire, Primal Potato Mine's explosion, Aloe's heal; the unused ones are
+  only bundle size). `rip_effects` deletes the other label folders and filters `manifest.json` / `manifest.tsv`.
+* `effect.json` now also carries the effect PAM's own `frame_rate` (some are 24 fps, e.g. SNAPDRAGON_FIRE and the pea splats;
+  most are 30). `PvZRipImporter.ImportPlantEffects` uses it for that effect's clip instead of the plant's rate. (Effects ripped
+  before this have no `frame_rate` = plant rate; plant projectiles / hit effects still use the plant rate.)
+* **Where does an effect go?** PvZ2 spawns an effect PAM at the plant's own PAM origin, and every exported frame is anchored in
+  that same canvas (origin 800,800), so the effect belongs at `effect anchor - plant anchor` from the plant's anchor. Anchor x = the
+  centre of the first exported frame, anchor y = `bbox_bottom - pivot_y * height` (all frames give the same value); both are in
+  `manifest.json`. Example: Snapdragon fire (1048,1322) vs plant (1003,1061) = (+45, +261 down). The mod does the world-space
+  part in `Plants/PlantEffectSpawner.cs` (anchor = the skin's `SpriteRendererSkin/anim` transform; one art pixel = its lossy scale).
+  Sanity check by looking at the art: the placed effect should overlap the plant the way it does in the PvZ2 PAM.
+
+### Opt-in launch/sound tables added 2026-11-23 (`PvZBundleBuilder.cs`)
+
+* `ExtraLaunchSamples` - plant -> substring of a `PlaySample` name: an `ExecuteAttack` is baked on that sample's frame (Primal
+  Potato Mine has no `use_action`; the blast is the `Attack_Explode` sample's frame).
+* `ExtraLaunchFrames` - plant -> (clip -> clip-relative frame) picked from the art, for a clip with neither marker nor sample
+  (Spring Bean `attack2`, frame 9: the stem is fully stretched).
+* `HandBakedSounds` also holds Snapdragon's breath (the PAM has no `PlaySample` on its attack, but the soundbank has the event:
+  id 952945927 -> 168056390/320177576/698354664) and Spring Bean's two sounds (3 unnamed events in the bank, assigned by
+  duration - NOT by ear). Name->id: events with no name in any data file can still be found by reverse lookup: iterate the
+  GLOBAL_DATA events with `plant_sounds.event_layers` and keep those whose WEM ids are in the plant's own bank.
+  `ApplyHandBakedSounds` removes EVERY `PlaySound` on a clip it touches, so only use it on clips without PAM sounds.
+
 ### Per-plant Animator fixes in the bulk import
 
 `ImportPlantFull` builds the controller from bulk defaults (default state `idle`, one-shot exit transition back
@@ -280,6 +361,14 @@ are reported but not baked. The bank-v140 Wwise layout (u8 action count,
 `idExt` at body offset 6, source id at body offset 9) was validated on this OBB only.
 
 ## Pitfalls found the hard way (read before touching the pipeline)
+
+* **Re-ripping Endurian wipes his hand-renamed idle tiers.** `rip_plant.py` rewrites `export_all/ENDURIAN/`
+  with the PAM's raw labels, but the shipped bundle needs them renamed (see `FixEndurianAnimatorController`
+  in `PvZBundleBuilder.cs`): `idle`->`armor`, `idle2`->`armor2`, `damage`->`idle`, `damage2`->`idle2`,
+  `damage3`->`idle3`, in the frame folders AND in `frames/manifest.json` / `manifest.tsv`. Do it right after the
+  re-rip and before the Unity import (`ExcludedPlantLabels` then drops `armor*`). Skipping it builds a bundle with
+  `damage*` clips and no `idle3`, twice the size. After any bulk rebuild, diff each new bundle's AnimationClip
+  names and sprite count against the shipped one (UnityPy); only intended changes should show.
 
 * **Never commit anything under `unity/Assets/` except `Editor/`.** `unity/.gitignore` is a whitelist for
   that reason (the imported assets are ripped PopCap/EA art and audio); don't `git add -f` around it.
@@ -307,3 +396,9 @@ are reported but not baked. The bank-v140 Wwise layout (u8 action count,
   `*.anim`/`ac.controller`) and restore `build_only.txt` afterwards.
 * `rip_plant.py` rewrites `rip_results.json` (tracked) - `git checkout rip_results.json` after one-off
   runs unless you mean to update it.
+* Several `rip_plant.py` processes in parallel are fine (each writes its own `rip_work/<P>` and `export_all/<P>`) but every one
+  overwrites `rip_results.json` with only its own result - copy the file first and put it back after a parallel batch.
+* A `PlaySample` event whose layers come out empty (`pick` missing; Aloe `Attack_Start`/`Charged`, Primal Potato Mine
+  `Attack_Start`) is a silent event in PvZ2's own data, not a bug; a layer whose WEM id is in no bank (`banks: null`; Primal Potato
+  Mine `Emerge` 33767102 and one `Attack_Explode` layer 78473496) has no media in this OBB - the bake logs "missing ...ogg" and
+  skips it. The other layers of the same event still play.

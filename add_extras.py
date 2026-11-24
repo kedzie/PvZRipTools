@@ -34,7 +34,7 @@ def add_extras(entry: dict) -> dict:
             try:
                 pam_json = run_popstudio_decode_pam(Path(projectile["attached_pam"]))
                 out = work / "projectile_frames"
-                run_pam_compositor(pam_json, entry["resources_json"], entry["atlas_png"], entry["group_id"], out)
+                run_pam_compositor(pam_json, entry["resources_json"], entry["atlas_png"], entry["group_id"], out, anchor="lowest")
                 shutil.rmtree(export_dir / "projectile", ignore_errors=True)
                 shutil.copytree(out, export_dir / "projectile" / "frames")
                 proj_status = "OK"
@@ -44,7 +44,7 @@ def add_extras(entry: dict) -> dict:
             try:
                 pam_json = run_popstudio_decode_pam(Path(projectile["impact_pam"]))
                 out = work / "projectile_hit_frames"
-                run_pam_compositor(pam_json, entry["resources_json"], entry["atlas_png"], entry["group_id"], out)
+                run_pam_compositor(pam_json, entry["resources_json"], entry["atlas_png"], entry["group_id"], out, anchor="lowest")
                 shutil.rmtree(export_dir / "projectile_hit", ignore_errors=True)
                 shutil.copytree(out, export_dir / "projectile_hit" / "frames")
                 hit_status = "OK"

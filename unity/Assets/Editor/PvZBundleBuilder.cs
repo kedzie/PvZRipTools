@@ -166,11 +166,16 @@ namespace PvZRip.Editor
                     // bulk defaults are wrong for plants whose clips aren't literally named idle/attack.
                     ApplyPlantAnimatorFixes(plantName);
 
+                    // Extra effects the plant spawns on its own (plants.json "effects"), each its own prefab.
+                    var effectNames = PvZRipImporter.ImportPlantEffects(plantName, plantDir,
+                        SampleRateOverrides.TryGetValue(plantName, out var effectSampleRate) ? effectSampleRate : sampleRate);
+
                     string bundleName = $"pvz{plantName}bundle";
                     TagPlantBundle(bundleName, plantName,
                         hasProjectile: projectileFramesDir != null && Directory.Exists(projectileFramesDir),
                         hasImpact: projectileHitFramesDir != null && Directory.Exists(projectileHitFramesDir),
-                        hasSeedPacket: !string.IsNullOrEmpty(seedPacketPng));
+                        hasSeedPacket: !string.IsNullOrEmpty(seedPacketPng),
+                        effectNames: effectNames);
 
                     // Frame-driven PlaySound Animation Events from the rip's sounds_manifest.json
                     // (no-op if the plant was ripped before plant_sounds.py existed).
@@ -224,6 +229,75 @@ namespace PvZRip.Editor
                 return;
             }
 
+            Debug.Log($"[PvZBundleBuilder] Built {manifest.GetAllAssetBundles().Length} bundle(s) -> {outputDir}");
+            EditorApplication.Exit(0);
+        }
+
+        // Batch entry point for ADDING a plant's extra effects (plants.json "effects", exported by
+        // `rip_plant.py --effects-only`) to its bundle WITHOUT re-importing the plant: unlike
+        // ImportAndBuildAllRipped it never calls ImportPlantFull, so the plant prefab, clips, controller, sounds
+        // and seed packet stay exactly as they are in the project. build_only.txt (required, one plant per
+        // line) picks the plants; build_outdir.txt (optional) redirects the output, as in ImportAndBuildAllRipped.
+        // Each plant's bundle is re-tagged (plant prefab + sounds + seed packet + effect prefabs) and only those
+        // bundles are built, chunk-compressed (LZ4).
+        public static void ImportEffectsAndBuildOnly()
+        {
+            const string exportRoot = "D:/PvZ2RipTest/export_all";
+            string outputDir = "D:/PvZ2RipTest/bundles";
+            const string filterFile = "D:/PvZ2RipTest/build_only.txt";
+            const string outputDirFile = "D:/PvZ2RipTest/build_outdir.txt";
+            const float sampleRate = 12f;
+
+            if (File.Exists(outputDirFile))
+            {
+                var firstLine = File.ReadAllLines(outputDirFile).Select(l => l.Trim()).FirstOrDefault(l => l.Length > 0);
+                if (!string.IsNullOrEmpty(firstLine)) outputDir = firstLine;
+            }
+            if (!File.Exists(filterFile))
+            {
+                Debug.LogError("[PvZBundleBuilder] ImportEffectsAndBuildOnly needs build_only.txt (the plants to rebuild).");
+                EditorApplication.Exit(1);
+                return;
+            }
+
+            var plants = File.ReadAllLines(filterFile).Select(l => l.Trim().ToUpperInvariant()).Where(l => l.Length > 0).ToList();
+            var builds = new List<AssetBundleBuild>();
+            foreach (var raw in plants)
+            {
+                string plantName = raw.ToLowerInvariant();
+                string plantDir = $"{exportRoot}/{raw}";
+                var effectNames = PvZRipImporter.ImportPlantEffects(plantName, plantDir,
+                    SampleRateOverrides.TryGetValue(plantName, out var rate) ? rate : sampleRate);
+                if (effectNames.Count == 0)
+                {
+                    Debug.LogError($"[PvZBundleBuilder] '{plantName}': no effects under {plantDir}/effects - nothing to build.");
+                    EditorApplication.Exit(1);
+                    return;
+                }
+
+                string seedDir = $"Assets/plantrip/{plantName}";
+                bool hasSeedPacket = File.Exists($"{seedDir}/SPR_SeedPacket_{plantName}.png");
+                string bundleName = $"pvz{plantName}bundle";
+                TagPlantBundle(bundleName, plantName, hasProjectile: false, hasImpact: false,
+                    hasSeedPacket: hasSeedPacket, effectNames: effectNames);
+                AssetDatabase.SaveAssets();
+                AssetDatabase.Refresh();
+                var members = AssetDatabase.GetAssetPathsFromAssetBundle(bundleName);
+                Debug.Log($"[PvZBundleBuilder] '{bundleName}' members: {string.Join(", ", members)}");
+                builds.Add(new AssetBundleBuild { assetBundleName = bundleName, assetNames = members });
+            }
+
+            Directory.CreateDirectory(outputDir);
+            var manifest = BuildPipeline.BuildAssetBundles(
+                outputDir, builds.ToArray(),
+                BuildAssetBundleOptions.ForceRebuildAssetBundle | BuildAssetBundleOptions.ChunkBasedCompression,
+                BuildTarget.StandaloneWindows64);
+            if (manifest == null)
+            {
+                Debug.LogError("[PvZBundleBuilder] BuildAssetBundles failed - manifest is null.");
+                EditorApplication.Exit(1);
+                return;
+            }
             Debug.Log($"[PvZBundleBuilder] Built {manifest.GetAllAssetBundles().Length} bundle(s) -> {outputDir}");
             EditorApplication.Exit(0);
         }
@@ -698,6 +772,45 @@ namespace PvZRip.Editor
                     }
                     break;
 
+                case "primal_peashooter":
+                    // The rock pea's flight clip ("animation", 2 frames) is a looping ball.
+                    ForceLoop($"Assets/plantrip/{plantName}/models/default/projectile", "animation");
+                    break;
+
+                case "snapdragon":
+                    // Nothing: idle default, attack -> idle.
+                    break;
+
+                case "aloe":
+                    // Charged (idle) -> attack (heal) -> idle_nocharge (loops while the heal recharges) ->
+                    // charged (the "ready again" flourish) -> idle. The behaviour controller plays
+                    // idle_nocharge/charged itself; the exits only have to land in the right place.
+                    RewireExit(controllerPath, "attack", "idle_nocharge");
+                    ClearTransitions(controllerPath, "idle_nocharge");
+                    ForceLoop(root, "idle_nocharge");
+                    RewireExit(controllerPath, "charged", "idle");
+                    break;
+
+                case "primal_potatomine":
+                    // Buried from the moment it is planted: plant (digging in) -> plant_idle (loops, only the
+                    // spike shows) -> [controller, after PvZ2's TimeUntilArmed] recover (emerges) -> idle (armed).
+                    SetDefaultState(controllerPath, "plant");
+                    RewireExit(controllerPath, "plant", "plant_idle");
+                    ClearTransitions(controllerPath, "plant_idle");
+                    ForceLoop(root, "plant_idle");
+                    RewireExit(controllerPath, "recover", "idle");
+                    break;
+
+                case "springbean":
+                    // idle -> [zombie close] attack (squashes flat, arms) -> idle3 (flat, loops, armed) ->
+                    // [zombie touches] attack2 (springs up) -> recover (asleep, loops) -> [10 s] recover2 -> idle.
+                    RewireExit(controllerPath, "attack", "idle3");
+                    ClearTransitions(controllerPath, "idle3", "recover");
+                    ForceLoop(root, "idle3", "recover");
+                    RewireExit(controllerPath, "attack2", "recover");
+                    RewireExit(controllerPath, "recover2", "idle");
+                    break;
+
                 case "peanut":
                     // Two shots per cycle at full health and in the first damage tier ("attack" then
                     // "attack2"); the heavier tiers only have one attack clip. Each chain ends in
@@ -1010,6 +1123,34 @@ namespace PvZRip.Editor
             // FirePeashooterBehaviorController spawns the pea from OnAnimationAttackEvent, so the bundle
             // and the DLL that does this ship together.
             { "firepeashooter", l => l == "attack" },
+            // 2026-11-23 round (Primal Peashooter, Snapdragon, Aloe, Primal Potato Mine, Spring Bean).
+            // Primal Peashooter: one use_action at +16 of the 31-frame attack clip (the rock pea leaves the mouth).
+            { "primal_peashooter", l => l == "attack" },
+            // Snapdragon: one use_action at +19 of the 41-frame attack clip (the breath).
+            { "snapdragon", l => l == "attack" },
+            // Aloe: one use_action at +13 of the 38-frame attack clip (the heal).
+            { "aloe", l => l == "attack" },
+            // Primal Potato Mine: no use_action; the blast is the frame of its Attack_Explode sample (ExtraLaunchSamples).
+            { "primal_potatomine", l => l == "attack" },
+            // Spring Bean: no marker at all; the spring-up frame is hand-picked (ExtraLaunchFrames) on attack2.
+            { "springbean", l => l == "attack2" },
+        };
+
+        // Plants whose launch moment is the frame of a PlaySample event (the PAM has no use_action there):
+        // plant -> substring of the sample name. Every PlaySample of the clip whose name contains it gets an
+        // ExecuteAttack event on the same frame (Primal Potato Mine: "Play_Plant_PrimalPotatoMine_Attack_Explode").
+        static readonly Dictionary<string, string> ExtraLaunchSamples = new Dictionary<string, string>
+        {
+            { "primal_potatomine", "Attack_Explode" },
+        };
+
+        // Plants whose PAM has neither a marker nor a sample on the moment that matters: plant -> (clip label ->
+        // clip-relative frame), picked from the art. Spring Bean attack2 (65 frames): the stem is fully
+        // extended from about frame 9 (bean airborne), that is where the zombie is thrown.
+        static readonly Dictionary<string, Dictionary<string, int>> ExtraLaunchFrames =
+            new Dictionary<string, Dictionary<string, int>>
+        {
+            { "springbean", new Dictionary<string, int> { { "attack2", 9 } } },
         };
 
         // Plants whose PAM names the launch moment with a command other than use_action*/use_special.
@@ -1039,6 +1180,8 @@ namespace PvZRip.Editor
             // A trailing * matches every clip whose label starts with the text before it.
             { "bombegranate", "attack*" },
             { "stallia", "attack" },
+            // Primal Potato Mine: the potato is spent when its attack clip ends (the blast is an ExecuteAttack event).
+            { "primal_potatomine", "attack" },
         };
 
         static bool MatchesClipLabel(string pattern, string label)
@@ -1072,6 +1215,12 @@ namespace PvZRip.Editor
             { "iceweed", 30f },
             // Dusk Lobber: 45-frame attack = 3.75 s at 12 fps against a 3 s launch rate (1.5 s now).
             { "dusklobber", 30f },
+            // 2026-11-23 round: PvZ2's own 30 fps.
+            { "primal_peashooter", 30f },
+            { "snapdragon", 30f },
+            { "aloe", 30f },
+            { "primal_potatomine", 30f },
+            { "springbean", 30f },
         };
 
         // Plants whose export folder has projectile/projectile_hit art that the shipped bundle must NOT
@@ -1108,6 +1257,19 @@ namespace PvZRip.Editor
                         ("projectile/animation3/animation3.anim", 19, 983543462),
                         ("projectile/animation3/animation3.anim", 22, 961886938),
                         ("projectile/animation3/animation3.anim", 26, 983543462),
+                    } },
+                // Snapdragon: the PAM has no PlaySample on the normal attack, but the Wwise bank has the event for it
+                // (id 952945927, 3 variants 168056390/320177576/698354664, name not found in any data file); the
+                // first variant on the breath frame (use_action, +19).
+                { "snapdragon", new[] { ("plant/attack/attack.anim", 19, 168056390) } },
+                // Spring Bean: the PAM has no sound commands at all; its bank has three events with one sound each
+                // (ids 491487756 -> 860752607 3.6 s, 3154183810 -> 940351724 0.84 s, 3525874005 -> 633182573 1.1 s).
+                // ASSIGNED BY LENGTH, NOT BY EAR: the short squish on the wind-up (attack), the boing on the spring
+                // (attack2). The 3.6 s one is left out.
+                { "springbean", new[]
+                    {
+                        ("plant/attack/attack.anim", 1, 940351724),
+                        ("plant/attack2/attack2.anim", 9, 633182573),
                     } },
             };
 
@@ -1300,6 +1462,15 @@ namespace PvZRip.Editor
                         if (a.command.StartsWith("use_action") || a.command == "use_special"
                             || (extraCommand != null && a.command == extraCommand)) launchFrames.Add(a.frame);
                     }
+                    if (ExtraLaunchSamples.TryGetValue(plantName, out var sampleName))
+                    {
+                        foreach (var e in anim.events ?? new SndEvent[0])
+                            if (e.sample != null && e.sample.Contains(sampleName)) launchFrames.Add(e.frame);
+                    }
+                    if (ExtraLaunchFrames.TryGetValue(plantName, out var fixedFrames) && fixedFrames.TryGetValue(anim.label, out var fixedFrame))
+                    {
+                        launchFrames.Add(fixedFrame);
+                    }
                     if (launchFrames.Count > 0 && ExtraLaunchOffsets.TryGetValue(plantName, out var offsets))
                     {
                         int first = launchFrames.Min();
@@ -1364,7 +1535,7 @@ namespace PvZRip.Editor
         }
 
         static void TagPlantBundle(string bundleName, string plantName, bool hasProjectile, bool hasImpact,
-            bool hasSeedPacket)
+            bool hasSeedPacket, IEnumerable<string> effectNames = null)
         {
             string modelsRoot = $"Assets/plantrip/{plantName}/models/default";
             TagForBundle(bundleName, $"{modelsRoot}/plant/{plantName}.prefab", $"Assets/plantrip/{plantName}/sounds");
@@ -1380,6 +1551,14 @@ namespace PvZRip.Editor
             if (hasSeedPacket)
             {
                 TagAsset(bundleName, $"Assets/plantrip/{plantName}/SPR_SeedPacket_{plantName}.png");
+            }
+            // Effect prefabs (PvZRipImporter.ImportPlantEffects): models/default/effects/<name>/<name>.prefab.
+            if (effectNames != null)
+            {
+                foreach (var effect in effectNames)
+                {
+                    TagAsset(bundleName, $"{modelsRoot}/effects/{effect}/{effect}.prefab");
+                }
             }
         }
 

@@ -121,4 +121,43 @@ Replanted hooks used (all public, signatures from the decompile):
   the shovel and end-of-level removals stay quiet) plus one on `Plant.Squish` (Zomboni/Gargantuar flatten without health loss), both in
   the mod (MelonLoader applies `[HarmonyPatch]` classes of any mod assembly), find the controller with `CustomPlantBehaviorController.GetFor`.
 * A custom projectile with `ProjectileMotion.Straight` moves at the native pea speed whatever `mVelX` says (UpdateNormalMotion's default
-  branch adds a constant per tick); the projectile art is anchored at its BOTTOM (pivot 0.5, 0), so lift `mPosY` by half the sprite height.
+  branch adds a constant per tick); the projectile art was exported anchored at each frame's own BOTTOM (pivot 0.5, 0), so `mPosY` is lifted by half the sprite height - the exporter now uses the fixed lowest-point anchor instead (README "Frame cropping and the anchor"), so re-check that lift when a projectile bundle is next rebuilt.
+
+## Chilly Pepper's lane ice (`CHILLYPEPPER_TILE_ICE`, 2026-11-22; READ FROM DATA/CODE, NOT TESTED IN GAME)
+
+* PvZ2 data: the effect is only a PAM (`IMAGES/768/INITIAL/EFFECTS/CHILLYPEPPER_TILE_ICE`, 20 frames at 30 fps = 0.67 s, one label
+  `animation`, ends on `stop`) plus 4 images in `PLANTCHILLYPEPPER_*_00` (resource group `PlantChillyPepper_Common`, `POPANIM_EFFECTS_CHILLYPEPPER_TILE_ICE`).
+  Nothing in PLANTPROPERTIES, PLANTTYPES, GRIDITEMPROPS or the plant's own PAM (`attack` only has `PlaySample` + `use_action` +25)
+  references it, so how PvZ2 spawns it (per tile, any stagger, lifetime) is NOT in the data. Its timeline: a static ice slab (sprite
+  `_ice_ground_start`) plus a 248x147 frost cloud that grows upward for 9 frames (alpha 0 -> 0.5) and fades out over the next 10.
+* The ChillyPepperDefault `Actions` are `radius_tiered_row` (200/100 damage), `row` (Freeze 1) and `row_adjacent` (Chill 1 + Freeze 1);
+  the ice is only the visual of the row freeze.
+* Replanted: Jalapeno's `Board.DoFwoosh(row)` makes 12 flame animations (`Constants.NUM_FLAMES_IN_FWOOSH`, all spawned in the one call, 30 render-order steps apart), render order
+  `RenderLayer.Particle + 1 + row*10000 + i*30`, i.e. ABOVE zombies. Native ground things (craters/scorch, `GridItem`) use
+  `Board.MakeRenderOrder(RenderLayer.Ground, row, 3)` = 200003 + row*10000, below plants (302000) and zombies (303000).
+  A `ReloadedController`'s sprite renderers get `sortingOrder = SortingUtils.RemapSortingLayers(renderOrder)` =
+  `trunc((ro - 100000) * 65525 / 800000) - 32763` on the gameplay sorting layer (id 0, "Default"); a free-standing prefab instance
+  is at order 0 (= render order ~500000, above everything but fog/UI) unless its renderers' `sortingOrder` is set.
+* World position: a controller's `localPosition = (x * 2.82, -y * 2.82)` for board pixels `(x, y)` (`Constants.BOARD_SCALE_AMOUNT`;
+  4K authoring size 3840x2160, ortho size 1080, tile = 80 x 100 board px = 225.6 x 282 units).
+
+
+## 2026-11-23 round: Primal Potato Mine, Primal Peashooter, Snapdragon, Aloe, Spring Bean (READ FROM DATA/CODE, NOT TESTED IN GAME)
+
+PvZ2 data (PLANTPROPERTIES / POWERS / PROJECTILETYPES; `POWERS.RTON` is not decoded by the pipeline - decode a COPY with
+`PopStudio.exe <copy>.RTON 220`, it writes `.json` next to it and then waits for a key, so run it with a timeout):
+
+| Plant | Cost | HP | PacketCooldown | Data |
+|---|---|---|---|---|
+| Primal Potato Mine | 50 | 300 | 25 | TimeUntilArmed 5 s; `PrimalPotatoMineDamageLvl1` DamageRadius 1.6 grid squares, 2400 (hits_shield_and_body), other lanes NOT ignored; trigger rect x -30..+35 |
+| Primal Peashooter | 175 | 300 | 5 | pea every 2.85-3 s; `PrimalPeashooterPea` BaseDamage 50, StunDuration 0.5, KnockbackChance 0.5, KnockbackDistance 64, art T_PEA_ROCK_PROJECTILE / T_SPLAT_PEA_ROCK, impact `Play_Plant_Peapod_Impact_Nitro`; `...FirePea` 100 / `...UltraFirePea` 150 (torchwood chain, not used) |
+| Snapdragon | 150 | 300 | 5 | breath every 1.85-2 s; `SnapdragonNormalAttackLvl1` LinearBurst: damage area 165 x 220 board px (2 tiles, 3 lanes), 30 fire damage (ash_death), 0.2 s between tile hits; WarmingRadius 1.5 tiles (thaws plants/ice); IsHotPlant |
+| Aloe | 75 | 300 | 20 | HealCooldown 5, TargetHPTriggerPercent 0.8, TargetHPHealAmount 500, PF heals 100 %; UnhealablePlants: explodeonut, chilibean, hypnoshroom, sunbean, stallia, squash, shadowshroom, stunion, bamboospartan; range "close" |
+| Spring Bean | 50 | 300 | 20 | KnockbackTime 0.5, KnockbackHeight 130, KnockbackOffset 80, AttackRecoveryTime 10, RectZombieProximity x -64..+74 (arms), trigger rect x -30..+17, Damage 1 |
+
+Clip graph of the new plants (30 fps): Primal Potato Mine `plant` -> `plant_idle` (loop) -> [5 s] `recover` -> `idle`, `attack` (blast frame 17,
+sample `Attack_Explode`); Spring Bean `idle` -> [zombie close] `attack` (squash) -> `idle3` (loop, armed) -> [zombie on top] `attack2`
+(spring, hit ~frame 9) -> `recover` (asleep, loop) -> [10 s] `recover2` -> `idle`; Aloe `idle` (charged) -> `attack` (heal at +13) ->
+`idle_nocharge` (loop) -> [5 s] `charged` -> `idle`. Spring Bean's plant PAM has no sound commands, Snapdragon's normal attack has none
+either (see README "Opt-in launch/sound tables"). The mod-side mechanics: `Plants/Defs/{PrimalPotatoMine,PrimalPeashooter,Snapdragon,Aloe,SpringBean}.cs`
+(CoreLib's `ZombiePushBack` does Spring Bean's / Primal Pea's shove; no CoreLib change was needed).
