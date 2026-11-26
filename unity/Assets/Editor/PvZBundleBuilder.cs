@@ -839,6 +839,21 @@ namespace PvZRip.Editor
                     // Nothing: idle default, attack -> idle (Stunion's OwnerDie removes it a moment before).
                     break;
 
+                // ---- 2026-11-26 round ----
+                case "sourshot":
+                    // attack_start (wind-up) -> attack_loop (two shots) -> attack_end -> idle (the bulk default exit).
+                    // The bulk default would send every one-shot straight back to idle.
+                    RewireExit(controllerPath, "attack_start", "attack_loop");
+                    RewireExit(controllerPath, "attack_loop", "attack_end");
+                    // The lemon's flight clip is a looping spin.
+                    ForceLoop($"Assets/plantrip/{plantName}/models/default/projectile", "animation");
+                    break;
+
+                case "pepperpult":
+                    // idle default, attack -> idle (bulk default). The pepper's flight clip is a looping tumble.
+                    ForceLoop($"Assets/plantrip/{plantName}/models/default/projectile", "animation");
+                    break;
+
                 case "peanut":
                     // Two shots per cycle at full health and in the first damage tier ("attack" then
                     // "attack2"); the heavier tiers only have one attack clip. Each chain ends in
@@ -1171,6 +1186,11 @@ namespace PvZRip.Editor
             { "cold_snapdragon", l => l == "attack" },
             // Stunion: one use_special at +30 of the 95-frame attack clip (the burp that stalls).
             { "stunion", l => l == "attack" },
+            // 2026-11-26 round (Sourshot, Pepperpult).
+            // Sourshot: attack_start (wind-up) -> attack_loop (two use_actions, +3 and +11: two shots) -> attack_end.
+            { "sourshot", l => l == "attack_loop" },
+            // Pepperpult: one use_action at +13 of the 60-frame attack clip (the pepper leaves the pult).
+            { "pepperpult", l => l == "attack" },
         };
 
         // Plants whose launch moment is the frame of a PlaySample event (the PAM has no use_action there):
@@ -1266,6 +1286,9 @@ namespace PvZRip.Editor
             { "sweetpotato", 30f },
             { "cold_snapdragon", 30f },
             { "stunion", 30f },
+            // 2026-11-26 round: PvZ2's own 30 fps.
+            { "sourshot", 30f },
+            { "pepperpult", 30f },
         };
 
         // Plants whose export folder has projectile/projectile_hit art that the shipped bundle must NOT
@@ -1286,6 +1309,9 @@ namespace PvZRip.Editor
             { "sweetpotato", new[] { "idle2", "idle2_damage", "idle2_damage2", "idle2_damage3", "plantfood", "water" } },
             { "cold_snapdragon", new[] { "idle2", "idle3", "plantfood", "water" } },
             { "stunion", new[] { "idle2", "plantfood_on", "plantfood", "plantfood_off", "water" } },
+            // 2026-11-26 round: only what the mod can play (no Plant Food, no tube pose, no idle fidgets).
+            { "sourshot", new[] { "idle2", "pf", "water" } },
+            { "pepperpult", new[] { "idle2", "idle3", "plantfood", "water" } },
         };
 
         // Plants whose PAM sounds are NOT baked into their clips (BakeSoundEventsForPlant leaves them out).

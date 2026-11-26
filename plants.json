@@ -2241,7 +2241,11 @@
     "atlas_png": "/mnt/d/PvZ/ReverseEngineering/PvZ2-OBB-Rip/pvz2_original_unpacked/ATLASES/PLANTPEPPERPULT_1536_00.PNG",
     "group_id": "PlantPepperpult_1536",
     "bnk": "/mnt/d/PvZ/ReverseEngineering/PvZ2-OBB-Rip/pvz2_original_unpacked/SOUNDBANKS/PLANT_PEPPERPULT.BNK",
-    "projectile": null,
+    "projectile": {
+      "alias": "PEPPERPULTDEFAULT",
+      "attached_pam": "/mnt/d/PvZ/ReverseEngineering/PvZ2-OBB-Rip/pvz2_original_unpacked/IMAGES/768/FULL/EFFECTS/T_PEPPERPULT_PROJECTILE/T_PEPPERPULT_PROJECTILE.PAM",
+      "impact_pam": "/mnt/d/PvZ/ReverseEngineering/PvZ2-OBB-Rip/pvz2_original_unpacked/IMAGES/768/FULL/EFFECTS/T_PEPPERPULT_PROJECTILE_SPLAT/T_PEPPERPULT_PROJECTILE_SPLAT.PAM"
+    },
     "seedpacket": {
       "atlas_png": "/mnt/d/PvZ/ReverseEngineering/PvZ2-OBB-Rip/pvz2_original_unpacked/ATLASES/UI_SEEDPACKETS_1536_00.PNG",
       "rect": [
@@ -2932,7 +2936,11 @@
     "atlas_png": "/mnt/d/PvZ/ReverseEngineering/PvZ2-OBB-Rip/pvz2_original_unpacked/ATLASES/PLANTSOURSHOT_1536_00.PNG",
     "group_id": "PlantSourshot_1536",
     "bnk": "/mnt/d/PvZ/ReverseEngineering/PvZ2-OBB-Rip/pvz2_original_unpacked/SOUNDBANKS/PLANT_SOURSHOT.BNK",
-    "projectile": null,
+    "projectile": {
+      "alias": "SOURSHOTPROJECTILE",
+      "attached_pam": "/mnt/d/PvZ/ReverseEngineering/PvZ2-OBB-Rip/pvz2_original_unpacked/IMAGES/768/FULL/EFFECTS/SOURSHOT_PROJECTILE/SOURSHOT_PROJECTILE.PAM",
+      "impact_pam": "/mnt/d/PvZ/ReverseEngineering/PvZ2-OBB-Rip/pvz2_original_unpacked/IMAGES/768/FULL/EFFECTS/SOURSHOT_PROJECTILE_IMPACT/SOURSHOT_PROJECTILE_IMPACT.PAM"
+    },
     "seedpacket": {
       "atlas_png": "/mnt/d/PvZ/ReverseEngineering/PvZ2-OBB-Rip/pvz2_original_unpacked/ATLASES/UI_SEEDPACKETS_1536_00.PNG",
       "rect": [
