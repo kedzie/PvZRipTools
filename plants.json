@@ -718,7 +718,18 @@
         126,
         141
       ]
-    }
+    },
+    "effects": [
+      {
+        "name": "ice",
+        "pam": "/mnt/d/PvZ/ReverseEngineering/PvZ2-OBB-Rip/pvz2_original_unpacked/IMAGES/768/INITIAL/EFFECTS/COLD_SNAPDRAGON_ICE/COLD_SNAPDRAGON_ICE.PAM",
+        "atlas_png": "/mnt/d/PvZ/ReverseEngineering/PvZ2-OBB-Rip/pvz2_original_unpacked/ATLASES/PLANTCOLDSNAPDRAGONEFFECTS_1536_00.PNG",
+        "group_id": "PlantColdSnapdragonEffects_1536",
+        "labels": [
+          "animation"
+        ]
+      }
+    ]
   },
   {
     "name": "CRANJELLY",
@@ -2095,7 +2106,8 @@
         156,
         138
       ]
-    }
+    },
+    "skip_image_suffix": "_2"
   },
   {
     "name": "NOCTARINE",

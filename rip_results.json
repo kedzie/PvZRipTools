@@ -1,194 +1,210 @@
 {
   "results": [
     {
-      "name": "BLOOMING_HEARTS",
-      "frames_msg": "exported 512 frames to /mnt/d/PvZ2RipTest/rip_work/BLOOMING_HEARTS/frames, labels: ['idle', 'idle2', 'idle3', 'idle4', 'attack', 'plantfood', 'water']",
-      "wem_total": 33,
-      "ogg_converted": 33,
-      "projectile_msg": "exported 21 frames to /mnt/d/PvZ2RipTest/rip_work/BLOOMING_HEARTS/projectile_frames, labels: ['animation', 'animation2', 'animation3']",
-      "impact_msg": "exported 88 frames to /mnt/d/PvZ2RipTest/rip_work/BLOOMING_HEARTS/projectile_hit_frames, labels: ['animation_sm', 'animation_med', 'animation_lrg']",
-      "seedpacket_ok": true,
-      "export_dir": "/mnt/d/PvZ2RipTest/export_all/BLOOMING_HEARTS"
-    },
-    {
-      "name": "COLD_SNAPDRAGON",
-      "frames_msg": "exported 343 frames to /mnt/d/PvZ2RipTest/rip_work/COLD_SNAPDRAGON/frames, labels: ['idle', 'idle2', 'idle3', 'attack', 'plantfood', 'water']",
-      "wem_total": 12,
-      "ogg_converted": 12,
+      "name": "BAMBOOSPARTAN",
+      "frames_msg": "exported 401 frames to /mnt/d/PvZ2RipTest/rip_work/BAMBOOSPARTAN/frames, labels: ['idle', 'idle2', 'attack', 'pf_attack', 'battle_trance_shield_break', 'battle_trance_idle1', 'battle_trance_idle2', 'battle_trance_attack', 'battle_trance_pf_attack', 'water']",
+      "sounds_msg": "6 sound event(s), 0 shared sound(s) ripped",
+      "wem_total": 4,
+      "ogg_converted": 4,
       "projectile_msg": null,
       "impact_msg": null,
+      "effects_msg": [],
       "seedpacket_ok": true,
-      "export_dir": "/mnt/d/PvZ2RipTest/export_all/COLD_SNAPDRAGON"
+      "export_dir": "/mnt/d/PvZ2RipTest/export_all/BAMBOOSPARTAN"
     },
     {
-      "name": "ELECTRICI_TEA",
-      "frames_msg": "exported 252 frames to /mnt/d/PvZ2RipTest/rip_work/ELECTRICI_TEA/frames, labels: ['idle', 'idle2', 'attack', 'plantfood_start', 'plantfood_loop', 'plantfood_end', 'water']",
-      "wem_total": 7,
-      "ogg_converted": 7,
+      "name": "BOMBEGRANATE",
+      "frames_msg": "exported 264 frames to /mnt/d/PvZ2RipTest/rip_work/BOMBEGRANATE/frames, labels: ['idle', 'attack', 'attack2', 'attack3', 'seed_land', 'seed_idle', 'seed_attack']",
+      "sounds_msg": "5 sound event(s), 3 shared sound(s) ripped",
+      "wem_total": 9,
+      "ogg_converted": 9,
       "projectile_msg": null,
       "impact_msg": null,
+      "effects_msg": [],
       "seedpacket_ok": true,
-      "export_dir": "/mnt/d/PvZ2RipTest/export_all/ELECTRICI_TEA"
+      "export_dir": "/mnt/d/PvZ2RipTest/export_all/BOMBEGRANATE"
     },
     {
-      "name": "ELECTRIC_PEASHOOTER",
-      "frames_msg": "exported 247 frames to /mnt/d/PvZ2RipTest/rip_work/ELECTRIC_PEASHOOTER/frames, labels: ['idle', 'idle2', 'idle3', 'attack', 'plantfood', 'water']",
-      "wem_total": 27,
-      "ogg_converted": 27,
+      "name": "CELERYSTALKER",
+      "frames_msg": "exported 512 frames to /mnt/d/PvZ2RipTest/rip_work/CELERYSTALKER/frames, labels: ['idle', 'idle2', 'idle3', 'idle4', 'down', 'idle_down', 'idle_down2', 'idle_down3', 'up', 'attack', 'attack_loop', 'attack_end', 'plantfood_on', 'plantfood', 'plantfood_off', 'water']",
+      "sounds_msg": "13 sound event(s), 7 shared sound(s) ripped",
+      "wem_total": 20,
+      "ogg_converted": 20,
       "projectile_msg": null,
       "impact_msg": null,
+      "effects_msg": [],
       "seedpacket_ok": true,
-      "export_dir": "/mnt/d/PvZ2RipTest/export_all/ELECTRIC_PEASHOOTER"
+      "export_dir": "/mnt/d/PvZ2RipTest/export_all/CELERYSTALKER"
     },
     {
-      "name": "HEADBUTTER_LETTUCE",
-      "frames_msg": "exported 343 frames to /mnt/d/PvZ2RipTest/rip_work/HEADBUTTER_LETTUCE/frames, labels: ['idle', 'idle2', 'idle3', 'attack', 'attack2', 'plantfood_on', 'plantfood_loop', 'plantfood_off', 'water']",
-      "wem_total": 8,
-      "ogg_converted": 8,
-      "projectile_msg": null,
-      "impact_msg": null,
-      "seedpacket_ok": true,
-      "export_dir": "/mnt/d/PvZ2RipTest/export_all/HEADBUTTER_LETTUCE"
-    },
-    {
-      "name": "HOCUS_CROCUS",
-      "frames_msg": "exported 441 frames to /mnt/d/PvZ2RipTest/rip_work/HOCUS_CROCUS/frames, labels: ['idle', 'idle2', 'idle3', 'attack', 'plantfood_start', 'plantfood_loop', 'plantfood_end', 'water']",
-      "wem_total": 11,
-      "ogg_converted": 11,
-      "projectile_msg": null,
-      "impact_msg": null,
-      "seedpacket_ok": true,
-      "export_dir": "/mnt/d/PvZ2RipTest/export_all/HOCUS_CROCUS"
-    },
-    {
-      "name": "ICE_BLOOM",
-      "frames_msg": "exported 229 frames to /mnt/d/PvZ2RipTest/rip_work/ICE_BLOOM/frames, labels: ['idle', 'idle2', 'attack1', 'water']",
+      "name": "CHILLYPEPPER",
+      "frames_msg": "exported 126 frames to /mnt/d/PvZ2RipTest/rip_work/CHILLYPEPPER/frames, labels: ['idle', 'attack', 'water']",
+      "sounds_msg": "2 sound event(s), 0 shared sound(s) ripped",
       "wem_total": 2,
       "ogg_converted": 2,
       "projectile_msg": null,
       "impact_msg": null,
+      "effects_msg": [
+        "effect tile_ice: exported 20 frames to /mnt/d/PvZ2RipTest/rip_work/CHILLYPEPPER/effect_tile_ice_frames, labels: ['animation']"
+      ],
       "seedpacket_ok": true,
-      "export_dir": "/mnt/d/PvZ2RipTest/export_all/ICE_BLOOM"
+      "export_dir": "/mnt/d/PvZ2RipTest/export_all/CHILLYPEPPER"
     },
     {
-      "name": "IMPEAR",
-      "frames_msg": "exported 220 frames to /mnt/d/PvZ2RipTest/rip_work/IMPEAR/frames, labels: ['idle', 'idle2', 'plantfood', 'water']",
-      "wem_total": 3,
-      "ogg_converted": 3,
+      "name": "DUSKLOBBER",
+      "frames_msg": "exported 182 frames to /mnt/d/PvZ2RipTest/rip_work/DUSKLOBBER/frames, labels: ['idle', 'idle2', 'attack', 'plantfood', 'water']",
+      "sounds_msg": "11 sound event(s), 1 shared sound(s) ripped",
+      "wem_total": 24,
+      "ogg_converted": 24,
+      "projectile_msg": "exported 41 frames to /mnt/d/PvZ2RipTest/rip_work/DUSKLOBBER/projectile_frames, labels: ['animation', 'animation2', 'animation3']",
+      "impact_msg": "exported 129 frames to /mnt/d/PvZ2RipTest/rip_work/DUSKLOBBER/projectile_hit_frames, labels: ['animation', 'animation2', 'animation3']",
+      "effects_msg": [],
+      "seedpacket_ok": true,
+      "export_dir": "/mnt/d/PvZ2RipTest/export_all/DUSKLOBBER"
+    },
+    {
+      "name": "ENDURIAN",
+      "frames_msg": "exported 1178 frames to /mnt/d/PvZ2RipTest/rip_work/ENDURIAN/frames, labels: ['idle', 'idle2', 'attack_start', 'attack_loop', 'attack_end', 'damage', 'attack_start_damage', 'attack_loop_damage', 'attack_end_damage', 'damage2', 'attack_start_damage2', 'attack_loop_damage2', 'attack_end_damage2', 'damage3', 'attack_start_damage3', 'attack_loop_damage3', 'attack_end_damage3', 'plantfood_on', 'water']",
+      "sounds_msg": "9 sound event(s), 3 shared sound(s) ripped",
+      "wem_total": 4,
+      "ogg_converted": 4,
       "projectile_msg": null,
       "impact_msg": null,
+      "effects_msg": [],
       "seedpacket_ok": true,
-      "export_dir": "/mnt/d/PvZ2RipTest/export_all/IMPEAR"
+      "export_dir": "/mnt/d/PvZ2RipTest/export_all/ENDURIAN"
     },
     {
-      "name": "KERNALPULT",
-      "frames_msg": "exported 296 frames to /mnt/d/PvZ2RipTest/rip_work/KERNALPULT/frames, labels: ['idle', 'attack', 'attack2', 'plantfood', 'water']",
-      "wem_total": 7,
-      "ogg_converted": 7,
+      "name": "EXPLODEONUT",
+      "frames_msg": "exported 425 frames to /mnt/d/PvZ2RipTest/rip_work/EXPLODEONUT/frames, labels: ['idle', 'idle2', 'idle3', 'damage', 'damage2', 'damage3', 'plantfood_on', 'plantfood', 'plantfood2', 'plantfood3', 'plantfood_off', 'water']",
+      "sounds_msg": "1 sound event(s), 0 shared sound(s) ripped",
+      "wem_total": 8,
+      "ogg_converted": 8,
       "projectile_msg": null,
       "impact_msg": null,
+      "effects_msg": [],
       "seedpacket_ok": true,
-      "export_dir": "/mnt/d/PvZ2RipTest/export_all/KERNALPULT"
+      "export_dir": "/mnt/d/PvZ2RipTest/export_all/EXPLODEONUT"
     },
     {
-      "name": "MISSILE_TOE",
-      "frames_msg": "exported 422 frames to /mnt/d/PvZ2RipTest/rip_work/MISSILE_TOE/frames, labels: ['idle', 'idle2', 'ready_idle', 'special', 'reload', 'reload_idle', 'reload_end', 'plantfood', 'water']",
-      "wem_total": 25,
-      "ogg_converted": 25,
-      "projectile_msg": "exported 120 frames to /mnt/d/PvZ2RipTest/rip_work/MISSILE_TOE/projectile_frames, labels: ['animation', 'animation2', 'animation3', 'animation4', 'animation5', 'animation6']",
-      "impact_msg": "exported 120 frames to /mnt/d/PvZ2RipTest/rip_work/MISSILE_TOE/projectile_hit_frames, labels: ['animation', 'animation2', 'animation3', 'animation4', 'animation5', 'animation6']",
-      "seedpacket_ok": true,
-      "export_dir": "/mnt/d/PvZ2RipTest/export_all/MISSILE_TOE"
-    },
-    {
-      "name": "MURKADAMIA_NUT",
-      "frames_msg": "exported 1581 frames to /mnt/d/PvZ2RipTest/rip_work/MURKADAMIA_NUT/frames, labels: ['nutdamage1_murknone_idle', 'nutdamage1_murknone_idle_02', 'nutdamage1_murknone_idle_03', 'nutdamage2_murknone_idle', 'nutdamage2_murknone_idle_02', 'nutdamage2_murknone_idle_03', 'nutdamage1_murknone_plantfood_on', 'nutdamage1_murkdamage1_tier1_idle', 'nutdamage1_murkdamage1_tier1_idle_02', 'nutdamage1_murkdamage1_tier1_attack', 'nutdamage1_murkdamage1_tier1_plantfood_on', 'nutdamage1_murkdamage2_tier1_idle', 'nutdamage1_murkdamage2_tier1_idle_02', 'nutdamage1_murkdamage2_tier1_attack', 'nutdamage1_murkdamage3_tier1_idle', 'nutdamage1_murkdamage3_tier1_idle_02', 'nutdamage1_murkdamage3_tier1_attack', 'nutdamage1_murkdamage1_tier2_idle', 'nutdamage1_murkdamage1_tier2_idle_02', 'nutdamage1_murkdamage1_tier2_attack', 'nutdamage1_murkdamage1_tier2_plantfood_on', 'nutdamage1_murkdamage2_tier2_idle', 'nutdamage1_murkdamage2_tier2_idle_02', 'nutdamage1_murkdamage2_tier2_attack', 'nutdamage1_murkdamage3_tier2_idle', 'nutdamage1_murkdamage3_tier2_idle_02', 'nutdamage1_murkdamage3_tier2_attack', 'nutdamage1_murkdamage1_tier3_idle', 'nutdamage1_murkdamage1_tier3_idle_02', 'nutdamage1_murkdamage1_tier3_attack', 'nutdamage1_murkdamage1_tier3_plantfood_on', 'nutdamage1_murkdamage2_tier3_idle', 'nutdamage1_murkdamage2_tier3_idle_02', 'nutdamage1_murkdamage2_tier3_attack', 'nutdamage1_murkdamage3_tier3_idle', 'nutdamage1_murkdamage3_tier3_idle_02', 'nutdamage1_murkdamage3_tier3_attack', 'nutdamage2_murkdamage1_tier1_idle', 'nutdamage2_murkdamage1_tier1_idle_02', 'nutdamage2_murkdamage1_tier1_attack', 'nutdamage2_murkdamage2_tier1_idle', 'nutdamage2_murkdamage2_tier1_idle_02', 'nutdamage2_murkdamage2_tier1_attack', 'nutdamage2_murkdamage3_tier1_idle', 'nutdamage2_murkdamage3_tier1_idle_02', 'nutdamage2_murkdamage3_tier1_attack', 'nutdamage2_murkdamage1_tier2_idle', 'nutdamage2_murkdamage1_tier2_idle_02', 'nutdamage2_murkdamage1_tier2_attack', 'nutdamage2_murkdamage2_tier2_idle', 'nutdamage2_murkdamage2_tier2_idle_02', 'nutdamage2_murkdamage2_tier2_attack', 'nutdamage2_murkdamage3_tier2_idle', 'nutdamage2_murkdamage3_tier2_idle_02', 'nutdamage2_murkdamage3_tier2_attack', 'nutdamage2_murkdamage1_tier3_idle', 'nutdamage2_murkdamage1_tier3_idle_02', 'nutdamage2_murkdamage1_tier3_attack', 'nutdamage2_murkdamage2_tier3_idle', 'nutdamage2_murkdamage2_tier3_idle_02', 'nutdamage2_murkdamage2_tier3_attack', 'nutdamage2_murkdamage3_tier3_idle', 'nutdamage2_murkdamage3_tier3_idle_02', 'nutdamage2_murkdamage3_tier3_attack', 'water']",
-      "wem_total": 6,
-      "ogg_converted": 6,
-      "projectile_msg": null,
-      "impact_msg": null,
-      "seedpacket_ok": true,
-      "export_dir": "/mnt/d/PvZ2RipTest/export_all/MURKADAMIA_NUT"
-    },
-    {
-      "name": "SHRINKING_VIOLET",
-      "frames_msg": "exported 589 frames to /mnt/d/PvZ2RipTest/rip_work/SHRINKING_VIOLET/frames, labels: ['idle', 'idle2', 'idle3', 'attack', 'plantfood', 'water']",
+      "name": "FIREPEASHOOTER",
+      "frames_msg": "exported 213 frames to /mnt/d/PvZ2RipTest/rip_work/FIREPEASHOOTER/frames, labels: ['idle', 'idle2', 'attack', 'plantfood', 'plantfood_loop', 'plantfood_end', 'water']",
+      "sounds_msg": "3 sound event(s), 0 shared sound(s) ripped",
       "wem_total": 13,
       "ogg_converted": 13,
       "projectile_msg": null,
       "impact_msg": null,
+      "effects_msg": [],
       "seedpacket_ok": true,
-      "export_dir": "/mnt/d/PvZ2RipTest/export_all/SHRINKING_VIOLET"
+      "export_dir": "/mnt/d/PvZ2RipTest/export_all/FIREPEASHOOTER"
     },
     {
-      "name": "SOLAR_TOMATO",
-      "frames_msg": "exported 155 frames to /mnt/d/PvZ2RipTest/rip_work/SOLAR_TOMATO/frames, labels: ['idle', 'idle2', 'attack']",
-      "wem_total": 14,
-      "ogg_converted": 14,
+      "name": "GOLDBLOOM",
+      "frames_msg": "exported 258 frames to /mnt/d/PvZ2RipTest/rip_work/GOLDBLOOM/frames, labels: ['idle', 'idle2', 'idle3', 'attack']",
+      "sounds_msg": "4 sound event(s), 0 shared sound(s) ripped",
+      "wem_total": 9,
+      "ogg_converted": 9,
       "projectile_msg": null,
       "impact_msg": null,
+      "effects_msg": [],
       "seedpacket_ok": true,
-      "export_dir": "/mnt/d/PvZ2RipTest/export_all/SOLAR_TOMATO"
+      "export_dir": "/mnt/d/PvZ2RipTest/export_all/GOLDBLOOM"
     },
     {
-      "name": "STICKYBOMB_RICE",
-      "frames_msg": "exported 522 frames to /mnt/d/PvZ2RipTest/rip_work/STICKYBOMB_RICE/frames, labels: ['idle', 'idle2', 'idle3', 'attack', 'attack2', 'plantfood_start', 'water']",
-      "wem_total": 8,
-      "ogg_converted": 8,
-      "projectile_msg": "exported 6 frames to /mnt/d/PvZ2RipTest/rip_work/STICKYBOMB_RICE/projectile_frames, labels: ['animation', 'animation2', 'animation3']",
+      "name": "ICEWEED",
+      "frames_msg": "exported 385 frames to /mnt/d/PvZ2RipTest/rip_work/ICEWEED/frames, labels: ['stage1_idle1', 'stage1_idle2', 'stage1_attack', 'stage1_pf_start', 'stage1_pf_loop', 'stage1_pf_end', 'stage2_idle1', 'stage2_idle2', 'stage2_attack', 'stage2_pf_start', 'stage2_pf_loop', 'stage2_pf_end', 'water']",
+      "sounds_msg": "6 sound event(s), 1 shared sound(s) ripped",
+      "wem_total": 11,
+      "ogg_converted": 11,
+      "projectile_msg": "exported 31 frames to /mnt/d/PvZ2RipTest/rip_work/ICEWEED/projectile_frames, labels: ['animation', 'animation2']",
+      "impact_msg": "exported 59 frames to /mnt/d/PvZ2RipTest/rip_work/ICEWEED/projectile_hit_frames, labels: ['animation', 'animation2', 'animation3']",
+      "effects_msg": [],
+      "seedpacket_ok": true,
+      "export_dir": "/mnt/d/PvZ2RipTest/export_all/ICEWEED"
+    },
+    {
+      "name": "MEGAGATLING",
+      "frames_msg": "exported 193 frames to /mnt/d/PvZ2RipTest/rip_work/MEGAGATLING/frames, labels: ['idle', 'attack', 'plantfood', 'idle_stage2', 'attack_stage2', 'water']",
+      "sounds_msg": "0 sound event(s), 1 shared sound(s) ripped",
+      "wem_total": 2,
+      "ogg_converted": 2,
+      "projectile_msg": "exported 20 frames to /mnt/d/PvZ2RipTest/rip_work/MEGAGATLING/projectile_frames, labels: ['animation']",
+      "impact_msg": "exported 18 frames to /mnt/d/PvZ2RipTest/rip_work/MEGAGATLING/projectile_hit_frames, labels: ['animation']",
+      "effects_msg": [],
+      "seedpacket_ok": true,
+      "export_dir": "/mnt/d/PvZ2RipTest/export_all/MEGAGATLING"
+    },
+    {
+      "name": "PEANUT",
+      "frames_msg": "exported 560 frames to /mnt/d/PvZ2RipTest/rip_work/PEANUT/frames, labels: ['idle', 'idle2', 'idle3', 'idle4', 'attack', 'attack2', 'plantfood_on', 'plantfood', 'plantfood_off', 'idle_damage1', 'idle2_damage1', 'idle3_damage1', 'attack_damage1', 'attack2_damage1', 'idle_damage2', 'idle2_damage2', 'attack_damage2', 'idle_damage3', 'idle2_damage3', 'attack_damage3', 'water']",
+      "sounds_msg": "7 sound event(s), 1 shared sound(s) ripped",
+      "wem_total": 4,
+      "ogg_converted": 4,
+      "projectile_msg": null,
       "impact_msg": null,
+      "effects_msg": [],
       "seedpacket_ok": true,
-      "export_dir": "/mnt/d/PvZ2RipTest/export_all/STICKYBOMB_RICE"
+      "export_dir": "/mnt/d/PvZ2RipTest/export_all/PEANUT"
     },
     {
-      "name": "TELEPORTATO",
-      "frames_msg": "exported 168 frames to /mnt/d/PvZ2RipTest/rip_work/TELEPORTATO/frames, labels: ['idle', 'idle2', 'attack_start', 'attack_loop', 'attack_end', 'water']",
+      "name": "PEAPOD",
+      "frames_msg": "exported 373 frames to /mnt/d/PvZ2RipTest/rip_work/PEAPOD/frames, labels: ['idle', 'idle2', 'idle3', 'idle4', 'idle5', 'attack', 'attack 2', 'attack 3', 'attack 4', 'attack 5', 'plantfood_on', 'plantfood', 'plantfood_off', 'water']",
+      "sounds_msg": "5 sound event(s), 2 shared sound(s) ripped",
+      "wem_total": 11,
+      "ogg_converted": 11,
+      "projectile_msg": null,
+      "impact_msg": null,
+      "effects_msg": [],
+      "seedpacket_ok": true,
+      "export_dir": "/mnt/d/PvZ2RipTest/export_all/PEAPOD"
+    },
+    {
+      "name": "PRIMAL_SUNFLOWER",
+      "frames_msg": "exported 196 frames to /mnt/d/PvZ2RipTest/rip_work/PRIMAL_SUNFLOWER/frames, labels: ['idle', 'idle2', 'special', 'plantfood_on', 'plantfood', 'plantfood_off', 'water']",
+      "sounds_msg": "2 sound event(s), 2 shared sound(s) ripped",
+      "wem_total": 0,
+      "ogg_converted": 0,
+      "projectile_msg": null,
+      "impact_msg": null,
+      "effects_msg": [],
+      "seedpacket_ok": true,
+      "export_dir": "/mnt/d/PvZ2RipTest/export_all/PRIMAL_SUNFLOWER"
+    },
+    {
+      "name": "PRIMAL_WALLNUT",
+      "frames_msg": "exported 1072 frames to /mnt/d/PvZ2RipTest/rip_work/PRIMAL_WALLNUT/frames, labels: ['idle', 'idle2', 'damage', 'damage2', 'damage3', 'plantfood_on', 'plantfood', 'plantfood2', 'plantfood3', 'plantfood_off', 'water']",
+      "sounds_msg": "1 sound event(s), 0 shared sound(s) ripped",
+      "wem_total": 1,
+      "ogg_converted": 1,
+      "projectile_msg": null,
+      "impact_msg": null,
+      "effects_msg": [],
+      "seedpacket_ok": true,
+      "export_dir": "/mnt/d/PvZ2RipTest/export_all/PRIMAL_WALLNUT"
+    },
+    {
+      "name": "STALLIA",
+      "frames_msg": "exported 333 frames to /mnt/d/PvZ2RipTest/rip_work/STALLIA/frames, labels: ['idle', 'idle2', 'idle3', 'idle4', 'attack', 'plantfood', 'water']",
+      "sounds_msg": "2 sound event(s), 0 shared sound(s) ripped",
       "wem_total": 6,
       "ogg_converted": 6,
       "projectile_msg": null,
       "impact_msg": null,
+      "effects_msg": [],
       "seedpacket_ok": true,
-      "export_dir": "/mnt/d/PvZ2RipTest/export_all/TELEPORTATO"
+      "export_dir": "/mnt/d/PvZ2RipTest/export_all/STALLIA"
     },
     {
-      "name": "TIGER_GRASS",
-      "frames_msg": "exported 662 frames to /mnt/d/PvZ2RipTest/rip_work/TIGER_GRASS/frames, labels: ['idle', 'lvl1_idle', 'lvl2_idle', 'lvl3_idle', 'lvl1_attack_start', 'lvl1_attack_loop', 'lvl1_attack_end', 'lvl2_attack_start', 'lvl2_attack_loop', 'lvl2_attack_end', 'lvl3_attack_start', 'lvl3_attack_loop', 'lvl3_attack_end', 'heal', 'water']",
-      "wem_total": 12,
-      "ogg_converted": 12,
-      "projectile_msg": null,
-      "impact_msg": null,
+      "name": "TUMBLEWEED",
+      "frames_msg": "exported 432 frames to /mnt/d/PvZ2RipTest/rip_work/TUMBLEWEED/frames, labels: ['idle1_1', 'idle1_2', 'attack', 'idle2_1', 'idle2_2', 'attack2', 'idle3_1', 'idle3_2', 'attack3']",
+      "sounds_msg": "9 sound event(s), 1 shared sound(s) ripped",
+      "wem_total": 9,
+      "ogg_converted": 9,
+      "projectile_msg": "exported 174 frames to /mnt/d/PvZ2RipTest/rip_work/TUMBLEWEED/projectile_frames, labels: ['animation', 'animation2', 'animation3', 'animation4', 'animation5', 'animation6']",
+      "impact_msg": "exported 120 frames to /mnt/d/PvZ2RipTest/rip_work/TUMBLEWEED/projectile_hit_frames, labels: ['animation', 'animation2', 'animation3', 'animation4', 'animation5', 'animation6']",
+      "effects_msg": [],
       "seedpacket_ok": true,
-      "export_dir": "/mnt/d/PvZ2RipTest/export_all/TIGER_GRASS"
-    },
-    {
-      "name": "VINE_BLASTBERRY",
-      "frames_msg": "exported 230 frames to /mnt/d/PvZ2RipTest/rip_work/VINE_BLASTBERRY/frames, labels: ['idle', 'idle2', 'attack', 'plantfood', 'water']",
-      "wem_total": 10,
-      "ogg_converted": 10,
-      "projectile_msg": null,
-      "impact_msg": null,
-      "seedpacket_ok": true,
-      "export_dir": "/mnt/d/PvZ2RipTest/export_all/VINE_BLASTBERRY"
-    },
-    {
-      "name": "VINE_PYRE",
-      "frames_msg": "exported 379 frames to /mnt/d/PvZ2RipTest/rip_work/VINE_PYRE/frames, labels: ['idle', 'idle2', 'attack', 'attackloop', 'attackend', 'plantfood', 'plantfoodloop', 'plantfoodend', 'water']",
-      "wem_total": 5,
-      "ogg_converted": 5,
-      "projectile_msg": null,
-      "impact_msg": null,
-      "seedpacket_ok": true,
-      "export_dir": "/mnt/d/PvZ2RipTest/export_all/VINE_PYRE"
-    },
-    {
-      "name": "WITCH_HAZEL",
-      "frames_msg": "exported 276 frames to /mnt/d/PvZ2RipTest/rip_work/WITCH_HAZEL/frames, labels: ['idle', 'idle2', 'idle3', 'attack', 'plantfood', 'water']",
-      "wem_total": 18,
-      "ogg_converted": 18,
-      "projectile_msg": null,
-      "impact_msg": null,
-      "seedpacket_ok": true,
-      "export_dir": "/mnt/d/PvZ2RipTest/export_all/WITCH_HAZEL"
+      "export_dir": "/mnt/d/PvZ2RipTest/export_all/TUMBLEWEED"
     }
   ],
   "failures": []

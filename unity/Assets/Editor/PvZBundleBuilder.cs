@@ -811,6 +811,34 @@ namespace PvZRip.Editor
                     RewireExit(controllerPath, "recover2", "idle");
                     break;
 
+                // ---- 2026-11-25 round ----
+                case "chardguard":
+                    // Leaves 3 -> 2 -> 1 -> 0, like Spring Bean's charge / wait / spring, per leaf level N:
+                    //   idle_leavesN (stands, loops) -> [controller, a zombie close] attack_leavesN (lies down) ->
+                    //   attack_idle_leavesN (lying, loops: armed) -> [controller, a zombie in reach] attack_flip_leavesN
+                    //   (springs up, the use_action marker is the shove, one leaf is flung off) -> idle_leaves(N-1).
+                    // idle_leaves0 is the plain wall he stays as. The bulk default would send every one-shot back to the
+                    // default state (idle_leaves3).
+                    for (int n = 3; n >= 1; n--)
+                    {
+                        RewireExit(controllerPath, $"attack_leaves{n}", $"attack_idle_leaves{n}");
+                        RewireExit(controllerPath, $"attack_flip_leaves{n}", $"idle_leaves{n - 1}");
+                    }
+                    break;
+
+                case "nightshade":
+                    // Nothing: idle default, attack -> idle.
+                    break;
+
+                case "sweetpotato":
+                    // idle / idle_damage / idle_damage2 / idle_damage3 are PvZ2's own wear looks and all loop (bulk default); the controller switches by health.
+                    break;
+
+                case "cold_snapdragon":
+                case "stunion":
+                    // Nothing: idle default, attack -> idle (Stunion's OwnerDie removes it a moment before).
+                    break;
+
                 case "peanut":
                     // Two shots per cycle at full health and in the first damage tier ("attack" then
                     // "attack2"); the heavier tiers only have one attack clip. Each chain ends in
@@ -1134,6 +1162,15 @@ namespace PvZRip.Editor
             { "primal_potatomine", l => l == "attack" },
             // Spring Bean: no marker at all; the spring-up frame is hand-picked (ExtraLaunchFrames) on attack2.
             { "springbean", l => l == "attack2" },
+            // 2026-11-25 round (Chard Guard, Nightshade, Cold Snapdragon, Stunion; Sweet Potato is a plain wall).
+            // Chard Guard: the shove is the use_action at +6 of each attack_flip_leavesN clip.
+            { "chardguard", l => l.StartsWith("attack_flip") },
+            // Nightshade: one use_action at +40 of the 95-frame attack clip (the petals landing).
+            { "nightshade", l => l == "attack" },
+            // Cold Snapdragon: one use_action at +11 of the 42-frame attack clip (the breath).
+            { "cold_snapdragon", l => l == "attack" },
+            // Stunion: one use_special at +30 of the 95-frame attack clip (the burp that stalls).
+            { "stunion", l => l == "attack" },
         };
 
         // Plants whose launch moment is the frame of a PlaySample event (the PAM has no use_action there):
@@ -1182,6 +1219,8 @@ namespace PvZRip.Editor
             { "stallia", "attack" },
             // Primal Potato Mine: the potato is spent when its attack clip ends (the blast is an ExecuteAttack event).
             { "primal_potatomine", "attack" },
+            // 2026-11-25 round: Stunion is spent when its burp has played out. (Nightshade and Chard Guard are never removed.)
+            { "stunion", "attack" },
         };
 
         static bool MatchesClipLabel(string pattern, string label)
@@ -1221,6 +1260,12 @@ namespace PvZRip.Editor
             { "aloe", 30f },
             { "primal_potatomine", 30f },
             { "springbean", 30f },
+            // 2026-11-25 round: PvZ2's own 30 fps.
+            { "chardguard", 30f },
+            { "nightshade", 30f },
+            { "sweetpotato", 30f },
+            { "cold_snapdragon", 30f },
+            { "stunion", 30f },
         };
 
         // Plants whose export folder has projectile/projectile_hit art that the shipped bundle must NOT
@@ -1235,7 +1280,18 @@ namespace PvZRip.Editor
         static readonly Dictionary<string, string[]> ExcludedPlantLabels = new Dictionary<string, string[]>
         {
             { "endurian", new[] { "armor", "armor2", "attack_start", "attack_loop", "attack_end" } },
+            // 2026-11-25 round (Nightshade is imported with ALL its PAM clips): only what the mod can play.
+            // Chard Guard: the "idle2_*"/"idle3_*" fidgets (idle3 snores, with a voice line that would repeat on every loop) and the tube pose.
+            { "chardguard", new[] { "idle2_leaves3", "idle2_leaves2", "idle2_leaves1", "idle2_leaves0", "idle3_leaves3", "idle3_leaves2", "idle3_leaves1", "idle3_leaves0", "water" } },
+            { "sweetpotato", new[] { "idle2", "idle2_damage", "idle2_damage2", "idle2_damage3", "plantfood", "water" } },
+            { "cold_snapdragon", new[] { "idle2", "idle3", "plantfood", "water" } },
+            { "stunion", new[] { "idle2", "plantfood_on", "plantfood", "plantfood_off", "water" } },
         };
+
+        // Plants whose PAM sounds are NOT baked into their clips (BakeSoundEventsForPlant leaves them out).
+        // Sweet Potato: its "Damage_0N" grunts sit on frame 0 of the looping idle_damage* clips, so they would repeat on
+        // every loop; a wall has nothing worth playing.
+        static readonly HashSet<string> NoBakedSounds = new HashSet<string> { "sweetpotato" };
 
         static readonly HashSet<string> NoProjectileImport = new HashSet<string> { "iceweed" };
 
@@ -1262,6 +1318,10 @@ namespace PvZRip.Editor
                 // (id 952945927, 3 variants 168056390/320177576/698354664, name not found in any data file); the
                 // first variant on the breath frame (use_action, +19).
                 { "snapdragon", new[] { ("plant/attack/attack.anim", 19, 168056390) } },
+                // Cold Snapdragon: same situation - the PAM's Play_Plant_ColdSnapDragon_Attack resolves to nothing, and its
+                // bank holds the same three breath variants Snapdragon's event 952945927 uses (168056390 / 320177576 /
+                // 698354664, ~2.1 s each). The second variant on the breath frame (use_action, +11): a GUESS, not data.
+                { "cold_snapdragon", new[] { ("plant/attack/attack.anim", 11, 320177576) } },
                 // Spring Bean: the PAM has no sound commands at all; its bank has three events with one sound each
                 // (ids 491487756 -> 860752607 3.6 s, 3154183810 -> 940351724 0.84 s, 3525874005 -> 633182573 1.1 s).
                 // ASSIGNED BY LENGTH, NOT BY EAR: the short squish on the wind-up (attack), the boing on the spring
@@ -1432,6 +1492,11 @@ namespace PvZRip.Editor
         public static void BakeSoundEventsForPlant(string plantName, string exportName)
         {
             bakeExportName = exportName;
+            if (NoBakedSounds.Contains(plantName))
+            {
+                Debug.Log($"[BakeSound] {plantName}: listed in NoBakedSounds - skipped.");
+                return;
+            }
             string modelsRoot = $"Assets/plantrip/{plantName}/models/default";
             var manifest = LoadSoundManifest(exportName, "plant");
             if (manifest == null || manifest.animations == null)

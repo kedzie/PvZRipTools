@@ -161,3 +161,19 @@ sample `Attack_Explode`); Spring Bean `idle` -> [zombie close] `attack` (squash)
 `idle_nocharge` (loop) -> [5 s] `charged` -> `idle`. Spring Bean's plant PAM has no sound commands, Snapdragon's normal attack has none
 either (see README "Opt-in launch/sound tables"). The mod-side mechanics: `Plants/Defs/{PrimalPotatoMine,PrimalPeashooter,Snapdragon,Aloe,SpringBean}.cs`
 (CoreLib's `ZombiePushBack` does Spring Bean's / Primal Pea's shove; no CoreLib change was needed).
+
+
+## 2026-11-25 round: Chard Guard, Nightshade, Sweet Potato, Cold Snapdragon, Stunion (READ FROM DATA/CODE, NOT TESTED IN GAME)
+
+| Plant | Cost | HP | PacketCooldown | Data |
+|---|---|---|---|---|
+| Chard Guard | 75 | 1500 | 15 (start 15) | melee/reposition/aoe wall; `PushesPerLeaf` 1, `KnockbackTime` 0.5, `KnockbackHeight` 130, `KnockbackOffset` 200 (PF the same); `RectZombieProximity` {-25, -50, 98, 60}; first `special` rect {-25, -30, 85, 30} (trigger), second `special` Damage 60 rect {-40, -125, 132, 220} (the spring's area). The PAM is a real state machine, 4 leaf levels: per level N (3, 2, 1) `idle_leavesN` / `idle2_leavesN` / `idle3_leavesN` (snoring), `attack_leavesN` (33 frames, lies down), `attack_idle_leavesN` (100, lying, loops), `attack_flip_leavesN` (43 frames, 54 at level 1; `use_action` at +6, one leaf flies off, ends in the art of level N-1); level 0 only has the idle clips (plain wall). Sounds on `attack_leavesN` / `attack_flip_leavesN` frame 0. |
+| Nightshade | 75 | 300 | 5 | shooter + melee + shadow; the melee `special` action: Damage 300, rect {-25, -30, 120, 130} (`MeleeDamage` 200 is a plant stat); its petal projectiles (NightshadeProjectile, PvZ2's Moon Flower power) are not ported. PAM `attack` 95 frames, `use_action` at +40 (the petals spin off and regrow within the clip, `LeafRespawnCooldown` 5); no damage / lost-part art; **two art sets in the PAM (`_2` = a dark/blue one): plants.json needs `"skip_image_suffix": "_2"`** |
+| Sweet Potato | 150 | 4000 | 20 (start 15) | wall; also lures zombies into other lanes (`LaneChangeTime` 0.6, `TimeBetweenLaneChanges` 5, `NormalAttractRect` {0,-110,80,200}; ported as `ZombieLaneLure`, Plant Food rect not ported); PAM has four wear looks `idle`, `idle_damage`, `idle_damage2`, `idle_damage3` (+ `idle2*` fidgets) |
+| Cold Snapdragon | 150 | 300 | 5 | `ColdSnapdragonNormalAttackLvl1`: same LinearBurst area as Snapdragon (165 x 220), BaseDamage 30 + `chill` 10 s instead of fire; effect `POPANIM_EFFECTS_COLD_SNAPDRAGON_ICE` is a per-square effect (GridAreaForAnimation x 1..2, 3 rows); PAM `attack` 42 frames, `use_action` +11, its sound event resolves to nothing (same three breath wems as Snapdragon's event 952945927) |
+| Stunion | 25 | 300 | 20 (start 15) | `IsInstant`/`IsConsumable`; `special` rect x -30..+90, y -50..+10, StunDuration 12 (PF: 210 px tall rect, 18 s); PAM `attack` 95 frames, `use_special` at +30, Poof sample at +78 |
+
+Mod side: `Plants/Defs/{ChardGuard,Nightshade,SweetPotato,ColdSnapdragon,Stunion}.cs`. Chard Guard charges (lies down), waits armed, springs (the shove) and
+loses one leaf per spring, like Spring Bean's charge / wait / spring; Cold Snapdragon's ice effect anchor sits (-8, +99) PAM px from the plant's anchor
+(manifest.json files, same method as Snapdragon's fire) and is placed once per tile hit. Rhubarbarian was ripped (plants.json entry kept) but is not in the mod: the PAM has
+no damage / lost-part states and PvZ2's real Rhubarbarian is a 20 s leaping brawler.
