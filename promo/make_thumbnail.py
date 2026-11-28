@@ -1,6 +1,5 @@
 import math, random, glob, sys, os
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from spray import spray_plus
 from hypno import hypno_group
 from belt import belt_group
 from hypno import hypno_tile
@@ -218,13 +217,13 @@ place(canvas, prep(stunion, 88), 602, 722, (190, 255, 120))
 
 
 # chips
-chips = [str(PLANT_COUNT) + ' NEW PLANTS', 'HYPNO ZOMBIES + ZOMBOTANY', 'ADVENTURE, SURVIVAL, MINIGAMES,\nVERSUS, 100X CONVEYOR BELTS']
+chips = [str(PLANT_COUNT) + ' NEW PLANTS', 'HYPNO ZOMBIES + ZOMBOTANY', 'ADVENTURE, SURVIVAL, MINIGAMES,\nVERSUS+, 100X CONVEYOR BELTS']
 cf = fit('', 23)
 LH = 27
-EX = 78
+EX = 0     # no spray-painted '+' any more: the list says VERSUS+
 wid = lambda c: max(d.textlength(l, font=cf) for l in c.split('\n'))
 total = sum(wid(c) + 44 for c in chips) + EX + 18 * (len(chips) - 1)
-cx = W / 2 - total / 2
+cx = W / 2 - total / 2 - 44
 cy = 476
 for c in chips:
     ex = EX if c == chips[-1] else 0
@@ -239,11 +238,8 @@ for c in chips:
     d = ImageDraw.Draw(canvas)
     for li, line in enumerate(lines):
         d.text((cx + (w - ex) / 2, top + h / 2 + (li - (len(lines) - 1) / 2) * LH + 1), line, font=cf, fill=(22, 80, 30), anchor='mm')
-    if ex:
-        PLUS = (cx + w - 34, top + 8, 86)
     cx += w + 18
 
-spray_plus(canvas, *PLUS)
 hypno_group(canvas, [('ConeheadZombie', 100, -5, 52, 78), ('Zombie', 100, 4, 142, 72),
                      ('FlagZombie', 116, -3, 232, 78),
                      ('VP31', 84, 4, 92, 190), ('VP34', 84, -4, 188, 196),
@@ -255,7 +251,7 @@ hypno_group(canvas, [('ConeheadZombie', 100, -5, 52, 78), ('Zombie', 100, 4, 142
 
 # the three new plants ride an angled conveyor belt in the lower right, in front of the right-hand plants
 belt_group(canvas, 1090, 656, 380, 38, 13,
-           [(snappea, 108, (190, 255, 120), {}, 0.33), (elec, 124, (120, 220, 255), dict(glow=20, glow_alpha=0.85), 0.59),
+           [(snappea, 108, (190, 255, 120), {}, 0.33), (elec, 114, (120, 220, 255), dict(glow=20, glow_alpha=0.85), 0.59),
             (pvine, 56, (150, 255, 120), {}, 0.85)], place, prep,
            extras=[(hypno_tile('ConeheadZombie', 84, -4), 0.1, 52)])
 

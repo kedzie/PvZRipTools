@@ -1,6 +1,5 @@
 import math, random, glob, sys, os
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from spray import spray_plus
 from hypno import hypno_group
 from belt import belt_group
 from hypno import hypno_tile
@@ -183,10 +182,10 @@ def build(with_text, out, title=True):
             for k, (im, h, col, kw) in enumerate(front):
                 place(canvas, prep(im, int(h * 1.25)), 394 + k * 58, 326, col, **kw)
         # the last chip is the game-mode list, on two lines (it now also names the 100x conveyor belt)
-        chips = [str(PLANT_COUNT) + ' NEW PLANTS', 'HYPNO ZOMBIES + ZOMBOTANY', 'ADVENTURE, SURVIVAL, MINIGAMES,\nVERSUS, 100X CONVEYOR BELTS']
+        chips = [str(PLANT_COUNT) + ' NEW PLANTS', 'HYPNO ZOMBIES + ZOMBOTANY', 'ADVENTURE, SURVIVAL, MINIGAMES,\nVERSUS+, 100X CONVEYOR BELTS']
         cf = ImageFont.truetype(FONT, 16 if title else 19)
         LH = 18 if title else 21
-        EX = 44
+        EX = 0     # no spray-painted '+' any more: the list says VERSUS+
         gap = 10
         wid = lambda c: max(d.textlength(l, font=cf) for l in c.split('\n'))
         total = sum(wid(c) + 24 for c in chips) + EX + gap * (len(chips) - 1)
@@ -208,11 +207,8 @@ def build(with_text, out, title=True):
             step = LH if title else 24
             for li, line in enumerate(lines):
                 d.text((cx + (w - ex) / 2, top + h / 2 + (li - (len(lines) - 1) / 2) * step + 1), line, font=cf, fill=(22, 80, 30), anchor='mm')
-            if ex:
-                PLUS = (cx + w - 22, top + 5, 54)
             if title:
                 cx += w + gap
-        spray_plus(canvas, *PLUS)
         hypno_group(canvas, [('BucketHeadZombie', 74, -6, 44, 52), ('ConeheadZombie', 74, 4, 114, 46),
                              ('NewspaperZombie', 74, -4, 184, 52), ('Zombie', 74, 5, 254, 46),
                              ('FlagZombie', 92, -3, 336, 50),
