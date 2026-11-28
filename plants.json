@@ -999,7 +999,13 @@
     "atlas_png": "/mnt/d/PvZ/ReverseEngineering/PvZ2-OBB-Rip/pvz2_original_unpacked/ATLASES/PLANTELECTRICPEASHOOTER_1536_00.PNG",
     "group_id": "PlantElectricPeashooter_1536",
     "bnk": "/mnt/d/PvZ/ReverseEngineering/PvZ2-OBB-Rip/pvz2_original_unpacked/SOUNDBANKS/PLANT_ELECTRICPEASHOOTER.BNK",
-    "projectile": null,
+    "projectile": {
+      "alias": "ELECTRICPEADEFAULT",
+      "attached_pam": "/mnt/d/PvZ/ReverseEngineering/PvZ2-OBB-Rip/pvz2_original_unpacked/IMAGES/768/INITIAL/EFFECTS/ELECTRIC_PEASHOOTER_ELECTROBALL/ELECTRIC_PEASHOOTER_ELECTROBALL.PAM",
+      "impact_pam": "/mnt/d/PvZ/ReverseEngineering/PvZ2-OBB-Rip/pvz2_original_unpacked/IMAGES/768/INITIAL/EFFECTS/ELECTRIC_PEASHOOTER_ELECTROBALL_EFFECTS/ELECTRIC_PEASHOOTER_ELECTROBALL_EFFECTS.PAM",
+      "atlas_png": "/mnt/d/PvZ/ReverseEngineering/PvZ2-OBB-Rip/pvz2_original_unpacked/ATLASES/PLANTELECTRICPEASHOOTEREFFECTS_1536_00.PNG",
+      "group_id": "PlantElectricPeashooterEffects_1536"
+    },
     "seedpacket": {
       "atlas_png": "/mnt/d/PvZ/ReverseEngineering/PvZ2-OBB-Rip/pvz2_original_unpacked/ATLASES/UI_SEEDPACKETS_1536_00.PNG",
       "rect": [
@@ -2855,7 +2861,9 @@
     "projectile": {
       "alias": "SNAPPEADEFAULT",
       "attached_pam": "/mnt/d/PvZ/ReverseEngineering/PvZ2-OBB-Rip/pvz2_original_unpacked/IMAGES/768/INITIAL/EFFECTS/T_PEA_PROJECTILE/T_PEA_PROJECTILE.PAM",
-      "impact_pam": "/mnt/d/PvZ/ReverseEngineering/PvZ2-OBB-Rip/pvz2_original_unpacked/IMAGES/768/INITIAL/EFFECTS/T_SPLAT_PEA/T_SPLAT_PEA.PAM"
+      "impact_pam": "/mnt/d/PvZ/ReverseEngineering/PvZ2-OBB-Rip/pvz2_original_unpacked/IMAGES/768/INITIAL/EFFECTS/T_SPLAT_PEA/T_SPLAT_PEA.PAM",
+      "atlas_png": "/mnt/d/PvZ/ReverseEngineering/PvZ2-OBB-Rip/pvz2_original_unpacked/ATLASES/PEAEFFECTS_1536_00.PNG",
+      "group_id": "PeaEffects_1536"
     },
     "seedpacket": {
       "atlas_png": "/mnt/d/PvZ/ReverseEngineering/PvZ2-OBB-Rip/pvz2_original_unpacked/ATLASES/UI_SEEDPACKETS_1536_00.PNG",
@@ -3713,6 +3721,25 @@
         2657,
         120,
         125
+      ]
+    }
+  },
+  {
+    "name": "INFINUT",
+    "camel": "Infinut",
+    "pam_file": "/mnt/d/PvZ/ReverseEngineering/PvZ2-OBB-Rip/pvz2_original_unpacked/IMAGES/768/FULL/PLANT/INFINUT/INFINUT.PAM",
+    "resources_json": "/mnt/d/PvZ2RipTest/RESOURCES.json",
+    "atlas_png": "/mnt/d/PvZ/ReverseEngineering/PvZ2-OBB-Rip/pvz2_original_unpacked/ATLASES/PLANTHOLONUT_1536_00.PNG",
+    "group_id": "PlantHolonut_1536",
+    "bnk": "/mnt/d/PvZ/ReverseEngineering/PvZ2-OBB-Rip/pvz2_original_unpacked/SOUNDBANKS/PLANT_INFINUT.BNK",
+    "projectile": null,
+    "seedpacket": {
+      "atlas_png": "/mnt/d/PvZ/ReverseEngineering/PvZ2-OBB-Rip/pvz2_original_unpacked/ATLASES/UI_SEEDPACKETS_1536_00.PNG",
+      "rect": [
+        759,
+        1720,
+        151,
+        134
       ]
     }
   }

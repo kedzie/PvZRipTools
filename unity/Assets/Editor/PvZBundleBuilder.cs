@@ -854,6 +854,30 @@ namespace PvZRip.Editor
                     ForceLoop($"Assets/plantrip/{plantName}/models/default/projectile", "animation");
                     break;
 
+                case "pvine":
+                case "electric_peashooter":
+                    // idle default, attack -> idle (bulk default). The pea / electro ball flight clip is a looping spin.
+                    ForceLoop($"Assets/plantrip/{plantName}/models/default/projectile", "animation");
+                    break;
+
+                case "snappea":
+                    // idle -> burrow_start -> burrow_loop (holds while the plant "travels"; code ends it) ->
+                    // burrow_attack01/03 -> burrow_return_chewing -> chewing_loop (holds for the chew; code ends it) ->
+                    // head_fire -> idle (bulk default). burrow_return_idle is the swallow-less way home.
+                    RewireExit(controllerPath, "burrow_start", "burrow_loop");
+                    RewireExit(controllerPath, "burrow_attack01", "burrow_return_chewing");
+                    RewireExit(controllerPath, "burrow_attack03", "burrow_return_chewing");
+                    RewireExit(controllerPath, "burrow_return_chewing", "chewing_loop");
+                    ClearTransitions(controllerPath, "burrow_loop", "chewing_loop");
+                    ForceLoop(root, "burrow_loop", "chewing_loop");
+                    // burrow_return_idle (the swallow-less way home, e.g. when the peas already killed the zombie) was
+                    // imported as a loop with no exit, so the plant climbed out over and over: play it once into idle.
+                    RewireExit(controllerPath, "burrow_return_idle", "idle");
+                    ForceNoLoop(root, "burrow_return_idle");
+                    // The head's flight clip is a looping pea.
+                    ForceLoop($"Assets/plantrip/{plantName}/models/default/projectile", "animation");
+                    break;
+
                 case "peanut":
                     // Two shots per cycle at full health and in the first damage tier ("attack" then
                     // "attack2"); the heavier tiers only have one attack clip. Each chain ends in
@@ -865,6 +889,23 @@ namespace PvZRip.Editor
                     RewireExit(controllerPath, "attack_damage2", "idle_damage2");
                     RewireExit(controllerPath, "attack_damage3", "idle_damage3");
                     break;
+            }
+        }
+
+        static void ForceNoLoop(string clipRoot, params string[] labels)
+        {
+            foreach (var label in labels)
+            {
+                var clip = AssetDatabase.LoadAssetAtPath<AnimationClip>($"{clipRoot}/{label}/{label}.anim");
+                if (clip == null)
+                {
+                    Debug.LogError($"[PvZBundleBuilder] Could not find clip '{label}' under {clipRoot} to stop looping.");
+                    continue;
+                }
+                var settings = AnimationUtility.GetAnimationClipSettings(clip);
+                settings.loopTime = false;
+                AnimationUtility.SetAnimationClipSettings(clip, settings);
+                EditorUtility.SetDirty(clip);
             }
         }
 
@@ -1191,6 +1232,22 @@ namespace PvZRip.Editor
             { "sourshot", l => l == "attack_loop" },
             // Pepperpult: one use_action at +13 of the 60-frame attack clip (the pepper leaves the pult).
             { "pepperpult", l => l == "attack" },
+            // 2026-11-26 night round (Pea Vine, Electric Peashooter).
+            // Pea Vine: one use_action at +14 of the 37-frame attack clip (ExtraLaunchOffsets adds the second pea).
+            { "pvine", l => l == "attack" },
+            // Electric Peashooter: one use_action at +38 of the 71-frame attack clip (the electro ball leaves).
+            { "electric_peashooter", l => l == "attack" },
+            // Snap Pea: every marker of the three bite clips and the spit is an ExecuteAttack event, in clip order
+            // (SnapPeaBehaviorController counts them): burrow_attack01 = 3 use_action (peas) + eat_action (swallow),
+            // burrow_attack02 = 3 use_action (peas, for zombies it cannot eat), burrow_attack03 = eat_action only,
+            // head_fire = fire_action (the head leaves).
+            { "snappea", l => l == "burrow_attack01" || l == "burrow_attack02" || l == "burrow_attack03" || l == "head_fire" },
+        };
+
+        // Plants whose launch events come ONLY from the listed PAM commands (not from use_action*/use_special).
+        static readonly Dictionary<string, string[]> ExclusiveLaunchCommands = new Dictionary<string, string[]>
+        {
+            { "snappea", new[] { "use_action", "eat_action", "fire_action" } },
         };
 
         // Plants whose launch moment is the frame of a PlaySample event (the PAM has no use_action there):
@@ -1225,6 +1282,9 @@ namespace PvZRip.Editor
         static readonly Dictionary<string, int[]> ExtraLaunchOffsets = new Dictionary<string, int[]>
         {
             { "megagatling", new[] { 0, 3, 6, 9, 12 } },
+            // Pea Vine fires two peas per cycle (PvZ2 has two identical projectile actions): +14 and +20 of the attack clip.
+            // PVineBehaviorController.PeasPerVolley must match the count here.
+            { "pvine", new[] { 0, 6 } },
         };
 
         // Plants whose clip also gets an "OwnerDie" Animation Event on its second-to-last keyframe
@@ -1289,6 +1349,10 @@ namespace PvZRip.Editor
             // 2026-11-26 round: PvZ2's own 30 fps.
             { "sourshot", 30f },
             { "pepperpult", 30f },
+            // 2026-11-26 night round.
+            { "pvine", 30f },
+            { "electric_peashooter", 30f },
+            { "snappea", 30f },
         };
 
         // Plants whose export folder has projectile/projectile_hit art that the shipped bundle must NOT
@@ -1312,6 +1376,11 @@ namespace PvZRip.Editor
             // 2026-11-26 round: only what the mod can play (no Plant Food, no tube pose, no idle fidgets).
             { "sourshot", new[] { "idle2", "pf", "water" } },
             { "pepperpult", new[] { "idle2", "idle3", "plantfood", "water" } },
+            // 2026-11-26 night round: no Plant Food, no tube pose.
+            { "pvine", new[] { "idle2", "idle3", "plantfood_start", "plantfood_loop", "plantfood_end", "water" } },
+            { "electric_peashooter", new[] { "idle2", "idle3", "plantfood", "water" } },
+            // Snap Pea: no idle fidgets, no Plant Food heads, no tube pose.
+            { "snappea", new[] { "idle2", "idle3", "head_fire_pf_start", "head_fire_pf_loop", "head_fire_pf_end", "water" } },
         };
 
         // Plants whose PAM sounds are NOT baked into their clips (BakeSoundEventsForPlant leaves them out).
@@ -1549,6 +1618,11 @@ namespace PvZRip.Editor
                     // clip only has use_action1), or use_special (sun plants), or the plant's own extra command.
                     foreach (var a in anim.actions ?? new SndAction[0])
                     {
+                        if (ExclusiveLaunchCommands.TryGetValue(plantName, out var onlyCommands))
+                        {
+                            if (Array.IndexOf(onlyCommands, a.command) >= 0) launchFrames.Add(a.frame);
+                            continue;
+                        }
                         ExtraLaunchCommands.TryGetValue(plantName, out var extraCommand);
                         if (a.command.StartsWith("use_action") || a.command == "use_special"
                             || (extraCommand != null && a.command == extraCommand)) launchFrames.Add(a.frame);
