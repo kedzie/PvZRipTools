@@ -2,6 +2,8 @@ import math, random, glob, sys, os
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from spray import spray_plus
 from hypno import hypno_group
+from belt import belt_group
+from hypno import hypno_tile
 from logo_ribbon import ref_ribbon, BRIANNE
 from PIL import Image, ImageDraw, ImageFilter, ImageFont, ImageChops
 
@@ -182,26 +184,6 @@ stroked(d, (W / 2, 248), 'COLLECTION 2', f2, (255, 232, 70), (110, 50, 6), 10, s
 ref_ribbon(canvas, W / 2, 330, 132, 82, pad=40, gap=34)
 d = ImageDraw.Draw(canvas)
 
-def belt(canvas, x0, x1, y0, y1):
-    layer = Image.new('RGBA', canvas.size, (0, 0, 0, 0))
-    ld = ImageDraw.Draw(layer)
-    r = (y1 - y0) // 2
-    ld.rounded_rectangle((x0, y0 + 6, x1, y1 + 6), radius=r, fill=(0, 20, 0, 150))
-    ld.rounded_rectangle((x0, y0, x1, y1), radius=r, fill=(52, 55, 62, 255), outline=(18, 20, 24, 255), width=4)
-    for x in range(int(x0 + 22), int(x1 - 16), 22):
-        ld.line((x, y0 + 6, x - 10, y1 - 6), fill=(92, 96, 106, 255), width=4)
-    ld.line((x0 + 22, y0 + 4, x1 - 22, y0 + 4), fill=(150, 154, 164, 255), width=3)
-    for x in range(int(x0 + 80), int(x1 - 60), 150):   # speed chevrons
-        for dx in (0, 16):
-            ld.polygon([(x + dx, y0 + 8), (x + dx + 13, (y0 + y1) / 2), (x + dx, y1 - 8), (x + dx + 6, y1 - 8), (x + dx + 19, (y0 + y1) / 2), (x + dx + 6, y0 + 8)], fill=(255, 170, 40, 255))
-    for cx in (x0 + r, x1 - r):                                      # end rollers
-        ld.ellipse((cx - r + 3, y0 + 3, cx + r - 3, y1 - 3), fill=(88, 92, 100, 255), outline=(18, 20, 24, 255), width=4)
-        ld.ellipse((cx - 6, (y0 + y1) / 2 - 6, cx + 6, (y0 + y1) / 2 + 6), fill=(30, 32, 36, 255))
-    canvas.alpha_composite(layer)
-
-
-belt(canvas, 300, 1010, 664, 712)
-
 # plants: in front of the title ribbon, behind the chips. Crowded on purpose - back row first so
 # heads peek out from behind the front row.
 place(canvas, prep(wallnut, 150), 905, 672, (200, 170, 120))
@@ -233,41 +215,33 @@ place(canvas, prep(nshade, 128), 548, 718, (205, 120, 255), glow=18, glow_alpha=
 place(canvas, prep(sweetp, 120), 812, 716, (255, 170, 90))
 place(canvas, prep(coldsn, 136), 738, 716, (150, 225, 255), glow=18, glow_alpha=0.8)
 place(canvas, prep(stunion, 88), 602, 722, (190, 255, 120))
-place(canvas, prep(elec, 140), 432, 714, (120, 220, 255), glow=20, glow_alpha=0.85)
-place(canvas, prep(snappea, 124), 855, 722, (190, 255, 120))
-place(canvas, prep(pvine, 62), 684, 728, (150, 255, 120))
+
 
 # chips
-chips = [str(PLANT_COUNT) + ' NEW PLANTS', 'HYPNO ZOMBIES + ZOMBOTANY', 'ADVENTURE, SURVIVAL, MINIGAMES, VERSUS']
+chips = [str(PLANT_COUNT) + ' NEW PLANTS', 'HYPNO ZOMBIES + ZOMBOTANY', 'ADVENTURE, SURVIVAL, MINIGAMES,\nVERSUS, 100X CONVEYOR BELTS']
 cf = fit('', 23)
+LH = 27
 EX = 78
-total = sum(d.textlength(c, font=cf) + 44 for c in chips) + EX + 18 * (len(chips) - 1)
+wid = lambda c: max(d.textlength(l, font=cf) for l in c.split('\n'))
+total = sum(wid(c) + 44 for c in chips) + EX + 18 * (len(chips) - 1)
 cx = W / 2 - total / 2
 cy = 476
 for c in chips:
     ex = EX if c == chips[-1] else 0
-    w = d.textlength(c, font=cf) + 44 + ex
+    w = wid(c) + 44 + ex
+    lines = c.split('\n')
+    h = 46 + LH * (len(lines) - 1)
+    top = cy - (h - 46) / 2
     chip = Image.new('RGBA', (W, H), (0, 0, 0, 0))
     cd = ImageDraw.Draw(chip)
-    cd.rounded_rectangle((cx, cy, cx + w, cy + 46), radius=23, fill=(255, 255, 255, 235), outline=(22, 80, 30, 255), width=3)
+    cd.rounded_rectangle((cx, top, cx + w, top + h), radius=23, fill=(255, 255, 255, 235), outline=(22, 80, 30, 255), width=3)
     canvas.alpha_composite(chip)
     d = ImageDraw.Draw(canvas)
-    d.text((cx + (w - ex) / 2, cy + 24), c, font=cf, fill=(22, 80, 30), anchor='mm')
+    for li, line in enumerate(lines):
+        d.text((cx + (w - ex) / 2, top + h / 2 + (li - (len(lines) - 1) / 2) * LH + 1), line, font=cf, fill=(22, 80, 30), anchor='mm')
     if ex:
-        PLUS = (cx + w - 34, cy + 8, 86)
+        PLUS = (cx + w - 34, top + 8, 86)
     cx += w + 18
-
-
-# the conveyor chip: second line, orange, bigger
-hot = 'CONVEYOR BELTS UP TO 100X FASTER'
-hf = fit('', 30)
-hw = d.textlength(hot, font=hf) + 56
-hx, hy = W / 2 - hw / 2, cy + 58
-chip = Image.new('RGBA', (W, H), (0, 0, 0, 0))
-ImageDraw.Draw(chip).rounded_rectangle((hx, hy, hx + hw, hy + 56), radius=28, fill=(255, 205, 60, 245), outline=(120, 55, 6, 255), width=4)
-canvas.alpha_composite(chip)
-d = ImageDraw.Draw(canvas)
-d.text((W / 2, hy + 30), hot, font=hf, fill=(110, 45, 4), anchor='mm')
 
 spray_plus(canvas, *PLUS)
 hypno_group(canvas, [('ConeheadZombie', 100, -5, 52, 78), ('Zombie', 100, 4, 142, 72),
@@ -278,6 +252,12 @@ hypno_group(canvas, [('ConeheadZombie', 100, -5, 52, 78), ('Zombie', 100, 4, 142
                      ('YetiZombie', 70, -4, 1098, 132), ('Zomboni', 70, 5, 1170, 138),
                      ('ZombieBobsledTeam', 70, -4, 1242, 132),
                      ('Gargantuar', 60, 4, 1200, 200), ('VP30', 60, -5, 1258, 206)])
+
+# the three new plants ride an angled conveyor belt in the lower right, in front of the right-hand plants
+belt_group(canvas, 1090, 656, 380, 38, 13,
+           [(snappea, 108, (190, 255, 120), {}, 0.33), (elec, 124, (120, 220, 255), dict(glow=20, glow_alpha=0.85), 0.59),
+            (pvine, 56, (150, 255, 120), {}, 0.85)], place, prep,
+           extras=[(hypno_tile('ConeheadZombie', 84, -4), 0.1, 52)])
 
 canvas.convert('RGB').save(OUT, quality=95)
 print('saved', OUT, canvas.size)

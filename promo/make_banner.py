@@ -2,6 +2,8 @@ import math, random, glob, sys, os
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from spray import spray_plus
 from hypno import hypno_group
+from belt import belt_group
+from hypno import hypno_tile
 from logo_ribbon import ref_ribbon, BRIANNE
 from PIL import Image, ImageDraw, ImageFilter, ImageFont, ImageChops
 
@@ -129,24 +131,6 @@ coldsn = frame('cold_snapdragon', 'idle')
 stunion = frame('stunion', 'idle')
 
 
-def belt(canvas, x0, x1, y0, y1):
-    layer = Image.new('RGBA', canvas.size, (0, 0, 0, 0))
-    ld = ImageDraw.Draw(layer)
-    r = (y1 - y0) // 2
-    ld.rounded_rectangle((x0, y0 + 4, x1, y1 + 4), radius=r, fill=(0, 20, 0, 150))
-    ld.rounded_rectangle((x0, y0, x1, y1), radius=r, fill=(52, 55, 62, 255), outline=(18, 20, 24, 255), width=3)
-    for x in range(int(x0 + 14), int(x1 - 10), 15):
-        ld.line((x, y0 + 4, x - 7, y1 - 4), fill=(92, 96, 106, 255), width=3)
-    ld.line((x0 + 14, y0 + 3, x1 - 14, y0 + 3), fill=(150, 154, 164, 255), width=2)
-    for x in range(int(x0 + 60), int(x1 - 40), 110):   # speed chevrons
-        for dx in (0, 11):
-            ld.polygon([(x + dx, y0 + 5), (x + dx + 9, (y0 + y1) / 2), (x + dx, y1 - 5), (x + dx + 4, y1 - 5), (x + dx + 13, (y0 + y1) / 2), (x + dx + 4, y0 + 5)], fill=(255, 170, 40, 255))
-    for cx in (x0 + r, x1 - r):                                      # end rollers
-        ld.ellipse((cx - r + 2, y0 + 2, cx + r - 2, y1 - 2), fill=(88, 92, 100, 255), outline=(18, 20, 24, 255), width=3)
-        ld.ellipse((cx - 4, (y0 + y1) / 2 - 4, cx + 4, (y0 + y1) / 2 + 4), fill=(30, 32, 36, 255))
-    canvas.alpha_composite(layer)
-
-
 def stroked(d, xy, text, font, fill, stroke, sw, shadow=0):
     x, y = xy
     if shadow:
@@ -163,8 +147,6 @@ def build(with_text, out, title=True):
             stroked(d, (W / 2, 136), 'COLLECTION 2', ImageFont.truetype(FONT, 88), (255, 232, 70), (110, 50, 6), 7, 7)
             ref_ribbon(canvas, W / 2, 180, 76, 44, pad=26, gap=20)
         d = ImageDraw.Draw(canvas)
-        if title:
-            belt(canvas, 352, 1040, 338, 372)
         # right flank (back to front)
         place(canvas, prep(wallnut, 118), 990, 372, (200, 170, 120))
         place(canvas, prep(endur, 150, flip=True), 1062, 372, (255, 215, 90))
@@ -187,13 +169,11 @@ def build(with_text, out, title=True):
                (chard, 64, (200, 255, 140), {}), (nshade, 60, (205, 120, 255), dict(glow=12, glow_alpha=0.75)),
                (sweetp, 62, (255, 170, 90), {}), (coldsn, 66, (150, 225, 255), dict(glow=12, glow_alpha=0.8)),
                (stunion, 56, (190, 255, 120), {}),
-               (sour, 64, (255, 240, 90), {}), (pepper, 66, (255, 120, 80), dict(glow=12, glow_alpha=0.8)),
-               (pvine, 38, (150, 255, 120), {}), (elec, 62, (120, 220, 255), dict(glow=14, glow_alpha=0.85)),
-               (snappea, 62, (190, 255, 120), {})]
-        xs = [372 + i * 25 for i in range(len(row))] if title else [535 + i * 39 for i in range(len(row))]
+               (sour, 64, (255, 240, 90), {}), (pepper, 66, (255, 120, 80), dict(glow=12, glow_alpha=0.8))]
+        xs = [388 + i * 27 for i in range(len(row))] if title else [535 + i * 39 for i in range(len(row))]
         if title:
             for k, ((im, h, col, kw), x) in enumerate(zip(row, xs)):
-                place(canvas, prep(im, int(h * 1.1)), x, 384 - (9 if k % 2 else 0), col, **kw)
+                place(canvas, prep(im, int(h * 1.1)), x, 396 - (9 if k % 2 else 0), col, **kw)
         else:
             # Nexus overlay version: two staggered rows in the open middle (the title text sits bottom-left
             # and the buttons bottom-right), bigger than the strip version.
@@ -202,28 +182,34 @@ def build(with_text, out, title=True):
                 place(canvas, prep(im, int(h * 1.25)), 366 + k * 58, 268, col, **kw)
             for k, (im, h, col, kw) in enumerate(front):
                 place(canvas, prep(im, int(h * 1.25)), 394 + k * 58, 326, col, **kw)
-        chips = [str(PLANT_COUNT) + ' NEW PLANTS', 'HYPNO ZOMBIES + ZOMBOTANY', 'BELT SPEED UP TO 100X', 'ADVENTURE, SURVIVAL, MINIGAMES, VERSUS']
-        BELTCHIP = 'BELT SPEED UP TO 100X'
+        # the last chip is the game-mode list, on two lines (it now also names the 100x conveyor belt)
+        chips = [str(PLANT_COUNT) + ' NEW PLANTS', 'HYPNO ZOMBIES + ZOMBOTANY', 'ADVENTURE, SURVIVAL, MINIGAMES,\nVERSUS, 100X CONVEYOR BELTS']
         cf = ImageFont.truetype(FONT, 16 if title else 19)
+        LH = 18 if title else 21
         EX = 44
         gap = 10
-        total = sum(d.textlength(c, font=cf) + 24 for c in chips) + EX + gap * (len(chips) - 1)
+        wid = lambda c: max(d.textlength(l, font=cf) for l in c.split('\n'))
+        total = sum(wid(c) + 24 for c in chips) + EX + gap * (len(chips) - 1)
         cx, cy = W / 2 - total / 2, (262 if title else 56)
         for ci, c in enumerate(chips):
             ex = EX if c == chips[-1] else 0
-            w = d.textlength(c, font=cf) + 24 + ex
+            w = wid(c) + 24 + ex
+            lines = c.split('\n')
+            h = 32 + (LH if title else 24) * (len(lines) - 1)
             if not title:
                 # Nexus overlay version: the chips are a centred column at the top middle
-                cx, cy = W / 2 - w / 2, 14 + ci * 38
+                cx, cy = W / 2 - w / 2, 22 + ci * 42
+            top = cy - (h - 32) / 2 if title else cy
             chip = Image.new('RGBA', (W, H), (0, 0, 0, 0))
-            hot = c == BELTCHIP
-            ImageDraw.Draw(chip).rounded_rectangle((cx, cy, cx + w, cy + 32), radius=16, fill=(255, 205, 60, 245) if hot else (255, 255, 255, 235),
-                                                     outline=(120, 55, 6, 255) if hot else (22, 80, 30, 255), width=3)
+            ImageDraw.Draw(chip).rounded_rectangle((cx, top, cx + w, top + h), radius=16, fill=(255, 255, 255, 235),
+                                                     outline=(22, 80, 30, 255), width=3)
             canvas.alpha_composite(chip)
             d = ImageDraw.Draw(canvas)
-            d.text((cx + (w - ex) / 2, cy + 17), c, font=cf, fill=(110, 45, 4) if hot else (22, 80, 30), anchor='mm')
+            step = LH if title else 24
+            for li, line in enumerate(lines):
+                d.text((cx + (w - ex) / 2, top + h / 2 + (li - (len(lines) - 1) / 2) * step + 1), line, font=cf, fill=(22, 80, 30), anchor='mm')
             if ex:
-                PLUS = (cx + w - 22, cy + 5, 54)
+                PLUS = (cx + w - 22, top + 5, 54)
             if title:
                 cx += w + gap
         spray_plus(canvas, *PLUS)
@@ -235,6 +221,11 @@ def build(with_text, out, title=True):
                              ('Zomboni', 58, 5, 1092 - (0 if title else 30), 46), ('ZombieBobsledTeam', 58, -4, 1148 - (0 if title else 30), 50),
                              ('VP31', 66, 4, 1204 - (0 if title else 30), 46), ('VP34', 66, -4, 1260 - (0 if title else 30), 50),
                              ('Gargantuar', 58, -4, 896 - (0 if title else 30), 128), ('VP30', 58, 5, 952 - (0 if title else 30), 134)])
+        # the three new plants ride an angled conveyor belt in the lower right (drawn last, on top)
+        belt_group(canvas, 1172, 334, 290, 22, 9,
+                   [(snappea, 56, (190, 255, 120), {}, 0.34), (elec, 66, (120, 220, 255), dict(glow=14, glow_alpha=0.85), 0.62),
+                    (pvine, 30, (150, 255, 120), {}, 0.88)], place, prep,
+                   extras=[(hypno_tile('ConeheadZombie', 46, -4), 0.1, 30)])
     else:
         # plants only, spread across the strip; Nexus overlays its own title
         items = [(fire, 250, (255, 150, 40), dict(glow=20, glow_alpha=0.75), False),

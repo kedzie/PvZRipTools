@@ -7,6 +7,7 @@ Scripts that draw the Complete Collection 2 release graphics (Pillow only):
 | `make_banner.py` | `graphic-cc2-nexus-banner-1300x372-v<VERSION>.png` and the `-plants-only-` overlay version |
 | `make_thumbnail.py` | `graphic-cc2-thumbnail-v<VERSION>.png` (1280x720) |
 | `spray.py`, `hypno.py`, `logo_ribbon.py` | helpers: the spray-painted "+", hypnotized zombie tiles, the PvZ2 -> Replanted ribbon |
+| `belt.py` | the angled conveyor belt (`belt_group`) that carries the release's new plants and a hypnotized zombie card |
 
 ```bash
 cd promo
