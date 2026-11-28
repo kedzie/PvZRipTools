@@ -1,2 +1,6 @@
 __pycache__/
 *.pyc
+
+# promo graphics: ripped inputs and generated images stay local
+promo/assets/
+promo/*.png
